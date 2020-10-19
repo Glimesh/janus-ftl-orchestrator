@@ -46,7 +46,7 @@ public:
 
 private:
     /* Private members */
-    static constexpr const char* SUPPORTED_CIPHER_LIST = "TLSv1.2+PSK:@SECLEVEL=5:@STRENGTH";
+    static constexpr const char* SUPPORTED_CIPHER_LIST = "TLSv1.3+PSK:@SECLEVEL=5:@STRENGTH";
     const int clientSocketHandle;
     const std::string preSharedKeyHexStr;
     std::thread connectionThread;
@@ -54,6 +54,7 @@ private:
     SSL_psk_find_session_cb_func sslPskCallbackFunc;
 
     /* Private static methods */
+    static unsigned int callbackServerPsk(SSL *ssl, const char *identity, unsigned char* psk, unsigned int maxPskLen);
     static int callbackFindSslPsk(SSL *ssl, const unsigned char *identity, size_t identity_len, SSL_SESSION **sess);
 
     /* Private methods */
@@ -61,6 +62,17 @@ private:
      * @brief Contains the code that runs in the connection thread.
      */
     void startConnectionThread();
+
+    /**
+     * @brief A callback function passed to OpenSSL used to find pre-shared keys
+     * 
+     * @param ssl 
+     * @param identity 
+     * @param psk 
+     * @param maxPskLen 
+     * @return int 
+     */
+    unsigned int serverPsk(SSL *ssl, const char *identity, unsigned char* psk, unsigned int maxPskLen);
 
     /**
      * @brief A callback function passed to OpenSSL used to find pre-shared keys

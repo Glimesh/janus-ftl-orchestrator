@@ -100,7 +100,7 @@ void JanusFtlOrchestrator::Listen()
         spdlog::info("Accepted new connection...");
 
         std::shared_ptr<OrchestrationConnection> connection = 
-            std::make_shared<OrchestrationConnection>(clientHandle, "FF33FF33");
+            std::make_shared<OrchestrationConnection>(clientHandle, "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
         pendingConnections.insert(connection);
         connection->Start();
     }

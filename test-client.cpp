@@ -12,6 +12,7 @@
 
 #include <arpa/inet.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/bin_to_hex.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <sstream>
@@ -20,7 +21,12 @@
 int psk(SSL *ssl, const EVP_MD *md, const unsigned char **id, size_t *idlen, SSL_SESSION **sess)
 {
     long keyLength = 0;
-    unsigned char* key = OPENSSL_hexstr2buf("FF33FF33", &keyLength);
+    unsigned char* key = OPENSSL_hexstr2buf("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", &keyLength);
+
+    spdlog::info("PSK processing with key {} / {}...", key, keyLength);
+    spdlog::info("Using key {}", spdlog::to_hex(key, key + keyLength));
+
+    spdlog::info("MD: {:p}", reinterpret_cast<const void*>(md));
 
     // Find the cipher we'll be using
     // identified by IANA mapping: https://testssl.sh/openssl-iana.mapping.html
@@ -48,25 +54,24 @@ int psk(SSL *ssl, const EVP_MD *md, const unsigned char **id, size_t *idlen, SSL
         OPENSSL_free(key);
         return 0;
     }
+    OPENSSL_free(key);
 
     if (!SSL_SESSION_set_cipher(temporarySslSession, cipher))
     {
         spdlog::error("Could not set cipher on new SSL session!");
-        OPENSSL_free(key);
         return 0;
     }
 
-    if (!SSL_SESSION_set_protocol_version(temporarySslSession, SSL_version(ssl)))
+    if (!SSL_SESSION_set_protocol_version(temporarySslSession, TLS1_3_VERSION))
     {
         spdlog::error("Could not set version on new SSL session!");
-        OPENSSL_free(key);
         return 0;
     }
 
-    OPENSSL_free(key);
+    
     *sess = temporarySslSession;
     *id = reinterpret_cast<const unsigned char*>("test");
-    *idlen = 5;
+    *idlen = 4;
 
     return 1;
 }

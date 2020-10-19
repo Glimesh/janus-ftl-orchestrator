@@ -13,6 +13,7 @@
 #include <functional>
 #include <openssl/err.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/bin_to_hex.h>
 
 #pragma region Constructor/Destructor
 OrchestrationConnection::OrchestrationConnection(
@@ -42,6 +43,17 @@ void OrchestrationConnection::Stop()
 #pragma endregion
 
 #pragma region Private static methods
+unsigned int OrchestrationConnection::callbackServerPsk(
+    SSL *ssl,
+    const char *identity,
+    unsigned char* psk,
+    unsigned int maxPskLen)
+{
+    // First, pull reference to OrchestrationConnection instance out of SSL context
+    OrchestrationConnection* that = reinterpret_cast<OrchestrationConnection*>(SSL_get_ex_data(ssl, 0));
+    return that->serverPsk(ssl, identity, psk, maxPskLen);
+}
+
 int OrchestrationConnection::callbackFindSslPsk(
     SSL *ssl,
     const unsigned char *identity,
@@ -63,18 +75,20 @@ void OrchestrationConnection::startConnectionThread()
 
     // Disable old protocols
     SSL_CTX_set_min_proto_version(sslContext, TLS1_3_VERSION);
+    SSL_CTX_set_max_proto_version(sslContext, TLS1_3_VERSION);
 
     // Restrict to secure PSK ciphers
-    SSL_CTX_set_cipher_list(sslContext, SUPPORTED_CIPHER_LIST);
+    //SSL_CTX_set_cipher_list(sslContext, SUPPORTED_CIPHER_LIST);
 
-    // Add self-reference to the SSL context so we can get back from callback functions
-    SSL_CTX_set_ex_data(sslContext, 0, this);
 
     // Set up callback to locate pre-shared keys
+    SSL_CTX_set_psk_server_callback(sslContext, &OrchestrationConnection::callbackServerPsk);
     SSL_CTX_set_psk_find_session_callback(sslContext, &OrchestrationConnection::callbackFindSslPsk);
 
-    // Bind SSL to our socket file descriptor
     ssl = SSL_new(sslContext);
+    // Add self-reference to the SSL context so we can get back from callback functions
+    SSL_set_ex_data(ssl, 0, this);
+    // Bind SSL to our socket file descriptor
     SSL_set_fd(ssl, clientSocketHandle);
     if (SSL_accept(ssl) <= 0)
     {
@@ -96,17 +110,41 @@ void OrchestrationConnection::startConnectionThread()
     }
 }
 
+unsigned int OrchestrationConnection::serverPsk(
+    SSL *ssl,
+    const char *identity,
+    unsigned char* psk,
+    unsigned int maxPskLen)
+{
+    long keyLength;
+    unsigned char* key = OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength);
+
+    spdlog::info("serverPsk: Using key {}", spdlog::to_hex(key, key + keyLength));
+
+    if (keyLength > maxPskLen) {
+        spdlog::error("PSK is too big!");
+        OPENSSL_free(key);
+        return 0;
+    }
+
+    std::memcpy(psk, key, keyLength);
+    OPENSSL_free(key);
+    return keyLength;
+}
+
 int OrchestrationConnection::findSslPsk(
     SSL *ssl,
     const unsigned char *identity,
     size_t identity_len,
     SSL_SESSION **sess)
 {
+    spdlog::info("IDENTITY: {}", std::string(identity, identity + identity_len));
+
     // Convert key hex string to bytes
     long keyLength;
-    //unsigned char* key = OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength);
+    unsigned char* key = OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength);
     //HACK
-    unsigned char* key = OPENSSL_hexstr2buf("FF33FF33", &keyLength);
+    // unsigned char* key = OPENSSL_hexstr2buf("FF33FF33", &keyLength);
     if (key == nullptr)
     {
         spdlog::error(
@@ -114,6 +152,8 @@ int OrchestrationConnection::findSslPsk(
             preSharedKeyHexStr);
         return 0;
     }
+
+    spdlog::info("findSslPsk: Using key {}", spdlog::to_hex(key, key + keyLength));
 
     // Find the cipher we'll be using
     // identified by IANA mapping: https://testssl.sh/openssl-iana.mapping.html
@@ -149,12 +189,13 @@ int OrchestrationConnection::findSslPsk(
         return 0;
     }
 
-    if (!SSL_SESSION_set_protocol_version(temporarySslSession, SSL_version(ssl)))
+    if (!SSL_SESSION_set_protocol_version(temporarySslSession, TLS1_3_VERSION))
     {
         spdlog::error("Could not set version on new SSL session!");
         OPENSSL_free(key);
         return 0;
     }
+    
 
     OPENSSL_free(key);
     *sess = temporarySslSession;
