@@ -10,10 +10,14 @@
 
 #include "OrchestrationConnection.h"
 
+#include "OpenSslPtr.h"
+
 #include <functional>
 #include <openssl/err.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/bin_to_hex.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #pragma region Constructor/Destructor
 OrchestrationConnection::OrchestrationConnection(
@@ -43,17 +47,6 @@ void OrchestrationConnection::Stop()
 #pragma endregion
 
 #pragma region Private static methods
-unsigned int OrchestrationConnection::callbackServerPsk(
-    SSL *ssl,
-    const char *identity,
-    unsigned char* psk,
-    unsigned int maxPskLen)
-{
-    // First, pull reference to OrchestrationConnection instance out of SSL context
-    OrchestrationConnection* that = reinterpret_cast<OrchestrationConnection*>(SSL_get_ex_data(ssl, 0));
-    return that->serverPsk(ssl, identity, psk, maxPskLen);
-}
-
 int OrchestrationConnection::callbackFindSslPsk(
     SSL *ssl,
     const unsigned char *identity,
@@ -69,33 +62,41 @@ int OrchestrationConnection::callbackFindSslPsk(
 #pragma region Private methods
 void OrchestrationConnection::startConnectionThread()
 {
-    // TLS handshake time
-    SSL* ssl;
-    SSL_CTX* sslContext = SSL_CTX_new(TLS_server_method());
+    SslCtxPtr sslContext(SSL_CTX_new(TLS_server_method()));
 
     // Disable old protocols
-    SSL_CTX_set_min_proto_version(sslContext, TLS1_3_VERSION);
-    SSL_CTX_set_max_proto_version(sslContext, TLS1_3_VERSION);
+    SSL_CTX_set_min_proto_version(sslContext.get(), TLS1_3_VERSION);
+    SSL_CTX_set_max_proto_version(sslContext.get(), TLS1_3_VERSION);
 
     // Restrict to secure PSK ciphers
-    //SSL_CTX_set_cipher_list(sslContext, SUPPORTED_CIPHER_LIST);
-
-
-    // Set up callback to locate pre-shared keys
-    SSL_CTX_set_psk_server_callback(sslContext, &OrchestrationConnection::callbackServerPsk);
-    SSL_CTX_set_psk_find_session_callback(sslContext, &OrchestrationConnection::callbackFindSslPsk);
-
-    ssl = SSL_new(sslContext);
-    // Add self-reference to the SSL context so we can get back from callback functions
-    SSL_set_ex_data(ssl, 0, this);
-    // Bind SSL to our socket file descriptor
-    SSL_set_fd(ssl, clientSocketHandle);
-    if (SSL_accept(ssl) <= 0)
+    if (!SSL_CTX_set_ciphersuites(sslContext.get(), "TLS_AES_128_GCM_SHA256"))
     {
         char sslErrStr[256];
         unsigned long sslErr = ERR_get_error();
         ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
         throw std::runtime_error(sslErrStr);
+    }
+
+    // Set up callback to locate pre-shared key
+    SSL_CTX_set_psk_find_session_callback(sslContext.get(), &OrchestrationConnection::callbackFindSslPsk);
+
+    // Create new SSL instance from context
+    SslPtr ssl(SSL_new(sslContext.get()));
+
+    // Add self-reference to the SSL instance so we can get back from callback functions
+    SSL_set_ex_data(ssl.get(), 0, this);
+
+    // Bind SSL to our socket file descriptor and attempt to accept incoming connection
+    SSL_set_fd(ssl.get(), clientSocketHandle);
+    if (SSL_accept(ssl.get()) <= 0)
+    {
+        char sslErrStr[256];
+        unsigned long sslErr = ERR_get_error();
+        ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
+        spdlog::warn("Failure accepting TLS connection: {}", sslErrStr);
+        shutdown(clientSocketHandle, SHUT_RDWR);
+        close(clientSocketHandle);
+        return;
     }
 
     spdlog::info("Accepted connection apparently");
@@ -110,28 +111,6 @@ void OrchestrationConnection::startConnectionThread()
     }
 }
 
-unsigned int OrchestrationConnection::serverPsk(
-    SSL *ssl,
-    const char *identity,
-    unsigned char* psk,
-    unsigned int maxPskLen)
-{
-    long keyLength;
-    unsigned char* key = OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength);
-
-    spdlog::info("serverPsk: Using key {}", spdlog::to_hex(key, key + keyLength));
-
-    if (keyLength > maxPskLen) {
-        spdlog::error("PSK is too big!");
-        OPENSSL_free(key);
-        return 0;
-    }
-
-    std::memcpy(psk, key, keyLength);
-    OPENSSL_free(key);
-    return keyLength;
-}
-
 int OrchestrationConnection::findSslPsk(
     SSL *ssl,
     const unsigned char *identity,
@@ -142,10 +121,8 @@ int OrchestrationConnection::findSslPsk(
 
     // Convert key hex string to bytes
     long keyLength;
-    unsigned char* key = OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength);
-    //HACK
-    // unsigned char* key = OPENSSL_hexstr2buf("FF33FF33", &keyLength);
-    if (key == nullptr)
+    OpenSslPtr keyPtr(OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength));
+    if (keyPtr.get() == nullptr)
     {
         spdlog::error(
             "Could not convert PSK hex string to byte array. String: {}",
@@ -153,7 +130,11 @@ int OrchestrationConnection::findSslPsk(
         return 0;
     }
 
-    spdlog::info("findSslPsk: Using key {}", spdlog::to_hex(key, key + keyLength));
+    spdlog::info(
+        "findSslPsk: Using key {}",
+        spdlog::to_hex(
+            reinterpret_cast<const unsigned char*>(keyPtr.get()),
+            reinterpret_cast<const unsigned char*>(keyPtr.get()) + keyLength));
 
     // Find the cipher we'll be using
     // identified by IANA mapping: https://testssl.sh/openssl-iana.mapping.html
@@ -162,43 +143,40 @@ int OrchestrationConnection::findSslPsk(
     if (cipher == nullptr)
     {
         spdlog::error("OpenSSL could not find cipher suite!");
-        OPENSSL_free(key);
         return 0;
     }
 
     // Create an SSL session and set some parameters on it
-    SSL_SESSION* temporarySslSession = SSL_SESSION_new();
+    SslSessionPtr temporarySslSession(SSL_SESSION_new());
     if (temporarySslSession == nullptr)
     {
         spdlog::error("Could not create new SSL session!");
-        OPENSSL_free(key);
         return 0;
     }
 
-    if (!SSL_SESSION_set1_master_key(temporarySslSession, key, keyLength))
+    if (!SSL_SESSION_set1_master_key(
+        temporarySslSession.get(),
+        reinterpret_cast<const unsigned char*>(keyPtr.get()),
+        keyLength))
     {
         spdlog::error("Could not set key on new SSL session!");
-        OPENSSL_free(key);
         return 0;
     }
 
-    if (!SSL_SESSION_set_cipher(temporarySslSession, cipher))
+    if (!SSL_SESSION_set_cipher(temporarySslSession.get(), cipher))
     {
         spdlog::error("Could not set cipher on new SSL session!");
-        OPENSSL_free(key);
         return 0;
     }
 
-    if (!SSL_SESSION_set_protocol_version(temporarySslSession, TLS1_3_VERSION))
+    if (!SSL_SESSION_set_protocol_version(temporarySslSession.get(), TLS1_3_VERSION))
     {
         spdlog::error("Could not set version on new SSL session!");
-        OPENSSL_free(key);
         return 0;
     }
     
-
-    OPENSSL_free(key);
-    *sess = temporarySslSession;
+    // Release ownership since we are no longer responsible for this session
+    *sess = temporarySslSession.release(); 
     return 1;
 }
 #pragma endregion
