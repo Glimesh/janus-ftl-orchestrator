@@ -1,14 +1,15 @@
 /**
  * @file main.cpp
  * @author Hayden McAfee (hayden@outlook.com)
- * @version 0.1
  * @date 2020-10-18
- * 
  * @copyright Copyright (c) 2020 Hayden McAfee
  * 
  */
 
-#include "JanusFtlOrchestrator.h"
+#include "Configuration.h"
+#include "Orchestrator.h"
+#include "TlsConnection.h"
+#include "TlsConnectionManager.h"
 
 #include <memory>
 
@@ -19,9 +20,20 @@
  */
 int main()
 {
-    std::unique_ptr<JanusFtlOrchestrator> orchestrator = 
-        std::make_unique<JanusFtlOrchestrator>();
+    std::unique_ptr<Configuration> configuration = std::make_unique<Configuration>();
+    configuration->Load();
+
+    // Set up our service to listen to orchestration connections via TCP/TLS
+    std::shared_ptr<TlsConnectionManager> connectionManager = 
+        std::make_shared<TlsConnectionManager>(configuration->GetPreSharedKey());
+    std::unique_ptr<Orchestrator> orchestrator = 
+        std::make_unique<Orchestrator>(connectionManager);
+    
+    // Initialize our classes
+    connectionManager->Init();
     orchestrator->Init();
-    orchestrator->Listen();
+
+    // Off we go
+    connectionManager->Listen();
     return 0;
 }

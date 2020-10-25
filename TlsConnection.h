@@ -1,5 +1,5 @@
 /**
- * @file OrchestrationConnection.h
+ * @file TlsConnection.h
  * @author Hayden McAfee (hayden@outlook.com)
  * @version 0.1
  * @date 2020-10-18
@@ -10,16 +10,23 @@
 
 #pragma once
 
+#include "IConnection.h"
+
+#include <arpa/inet.h>
 #include <atomic>
 #include <filesystem>
+#include <functional>
 #include <openssl/ssl.h>
 #include <string>
 #include <thread>
+#include <vector>
 
 /**
- * @brief OrchestrationConnection represents a connection to a single FTL instance.
+ * @brief
+ *  OrchestrationConnection represents a connection to a single FTL instance
+ *  over a TCP socket secured by TLS.
  */
-class OrchestrationConnection
+class TlsConnection : public IConnection
 {
 public:
     /* Constructor/Destructor */
@@ -29,26 +36,26 @@ public:
      * @param clientSocketHandle the handle to the accepted socket connection for this client
      * @param preSharedKeyHexStr pre-shared key in hex format (00-FF) for TLS PSK encryption
      */
-    OrchestrationConnection(
+    TlsConnection(
         int clientSocketHandle,
-        std::string preSharedKeyHexStr);
+        sockaddr_in acceptAddress,
+        std::vector<uint8_t> preSharedKey);
 
-    /* Public methods */
-    /**
-     * @brief Starts the connection in a new thread
-     */
-    void Start();
-
-    /**
-     * @brief Shuts down connection to client and terminates connection thread
-     */
-    void Stop();
+    /* IOrchestrationConnection */
+    void Start() override;
+    void Stop() override;
+    void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
+    std::string GetHostname() override;
+    FtlServerKind GetServerKind() override;
 
 private:
     /* Private members */
-    static constexpr const char* SUPPORTED_CIPHER_LIST = "TLSv1.3+PSK:@SECLEVEL=5:@STRENGTH";
     const int clientSocketHandle;
-    const std::string preSharedKeyHexStr;
+    sockaddr_in acceptAddress;
+    const std::vector<uint8_t> preSharedKey;
+    std::string hostname;
+    FtlServerKind serverKind;
+    std::function<void(void)> onConnectionClosed;
     std::thread connectionThread;
     std::atomic<bool> isStopping = { 0 };
     SSL_psk_find_session_cb_func sslPskCallbackFunc;
@@ -64,15 +71,9 @@ private:
     void startConnectionThread();
 
     /**
-     * @brief A callback function passed to OpenSSL used to find pre-shared keys
-     * 
-     * @param ssl 
-     * @param identity 
-     * @param psk 
-     * @param maxPskLen 
-     * @return int 
+     * @brief Closes the socket and fires connection closed callback
      */
-    unsigned int serverPsk(SSL *ssl, const char *identity, unsigned char* psk, unsigned int maxPskLen);
+    void closeConnection();
 
     /**
      * @brief A callback function passed to OpenSSL used to find pre-shared keys

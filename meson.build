@@ -1,9 +1,11 @@
 project('janus-ftl-orchestrator', 'cpp')
 
 sources = files([
+    'Configuration.cpp',
     'main.cpp',
-    'JanusFtlOrchestrator.cpp',
-    'OrchestrationConnection.cpp'
+    'Orchestrator.cpp',
+    'TlsConnection.cpp',
+    'TlsConnectionManager.cpp'
 ])
 
 deps = [
@@ -23,9 +25,17 @@ executable(
     install_dir: '/usr/local/bin'
 )
 
+testsources = files([
+    # Test sources
+    'test/test.cpp',
+    'test/OrchestratorTests.cpp',
+    # Project sources
+    'Orchestrator.cpp'
+])
+
 executable(
-    'janus-ftl-orchestrator-test-client',
-    files(['test-client.cpp']),
+    'janus-ftl-orchestrator-test',
+    testsources,
     dependencies: deps,
     cpp_args: cppargs
 )

@@ -1,5 +1,5 @@
 /**
- * @file OrchestrationConnection.cpp
+ * @file TlsConnection.cpp
  * @author Hayden McAfee (hayden@outlook.com)
  * @version 0.1
  * @date 2020-10-18
@@ -8,7 +8,7 @@
  * 
  */
 
-#include "OrchestrationConnection.h"
+#include "TlsConnection.h"
 
 #include "OpenSslPtr.h"
 
@@ -20,23 +20,25 @@
 #include <unistd.h>
 
 #pragma region Constructor/Destructor
-OrchestrationConnection::OrchestrationConnection(
+TlsConnection::TlsConnection(
     int clientSocketHandle,
-    std::string preSharedKeyHexStr
+    sockaddr_in acceptAddress,
+    std::vector<uint8_t> preSharedKey
 ) : 
     clientSocketHandle(clientSocketHandle),
-    preSharedKeyHexStr(preSharedKeyHexStr)
+    acceptAddress(acceptAddress),
+    preSharedKey(preSharedKey)
 { }
 #pragma endregion
 
-#pragma region Public methods
-void OrchestrationConnection::Start()
+#pragma region IOrchestrationConnection
+void TlsConnection::Start()
 {
-    connectionThread = std::thread(&OrchestrationConnection::startConnectionThread, this);
+    connectionThread = std::thread(&TlsConnection::startConnectionThread, this);
     connectionThread.detach();
 }
 
-void OrchestrationConnection::Stop()
+void TlsConnection::Stop()
 {
     isStopping = true;
     if (connectionThread.joinable())
@@ -44,23 +46,39 @@ void OrchestrationConnection::Stop()
         connectionThread.join();
     }
 }
+
+void TlsConnection::SetOnConnectionClosed(std::function<void(void)> onConnectionClosed)
+{
+    this->onConnectionClosed = onConnectionClosed;
+}
+
+std::string TlsConnection::GetHostname()
+{
+    return hostname;
+}
+
+FtlServerKind TlsConnection::GetServerKind()
+{
+    return serverKind;
+}
+
 #pragma endregion
 
 #pragma region Private static methods
-int OrchestrationConnection::callbackFindSslPsk(
+int TlsConnection::callbackFindSslPsk(
     SSL *ssl,
     const unsigned char *identity,
     size_t identity_len,
     SSL_SESSION **sess)
 {
-    // First, pull reference to OrchestrationConnection instance out of SSL context
-    OrchestrationConnection* that = reinterpret_cast<OrchestrationConnection*>(SSL_get_ex_data(ssl, 0));
+    // First, pull reference to TlsConnection instance out of SSL context
+    TlsConnection* that = reinterpret_cast<TlsConnection*>(SSL_get_ex_data(ssl, 0));
     return that->findSslPsk(ssl, identity, identity_len, sess);
 }
 #pragma endregion
 
 #pragma region Private methods
-void OrchestrationConnection::startConnectionThread()
+void TlsConnection::startConnectionThread()
 {
     SslCtxPtr sslContext(SSL_CTX_new(TLS_server_method()));
 
@@ -78,7 +96,7 @@ void OrchestrationConnection::startConnectionThread()
     }
 
     // Set up callback to locate pre-shared key
-    SSL_CTX_set_psk_find_session_callback(sslContext.get(), &OrchestrationConnection::callbackFindSslPsk);
+    SSL_CTX_set_psk_find_session_callback(sslContext.get(), &TlsConnection::callbackFindSslPsk);
 
     // Create new SSL instance from context
     SslPtr ssl(SSL_new(sslContext.get()));
@@ -94,8 +112,7 @@ void OrchestrationConnection::startConnectionThread()
         unsigned long sslErr = ERR_get_error();
         ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
         spdlog::warn("Failure accepting TLS connection: {}", sslErrStr);
-        shutdown(clientSocketHandle, SHUT_RDWR);
-        close(clientSocketHandle);
+        closeConnection();
         return;
     }
 
@@ -108,33 +125,62 @@ void OrchestrationConnection::startConnectionThread()
         {
             break;
         }
+
+        // Try to read some bytes
+        char buffer[512];
+        int bytesRead = SSL_read(ssl.get(), buffer, sizeof(buffer));
+        if (bytesRead <= 0)
+        {
+            int sslError = SSL_get_error(ssl.get(), bytesRead);
+            switch (sslError)
+            {
+            // Continuable errors:
+            case SSL_ERROR_NONE:
+                // Nothing to see here...
+            case SSL_ERROR_WANT_READ:
+                // Not enough data available; keep trying.
+                break;
+
+            // Non-continuable errors:
+            case SSL_ERROR_ZERO_RETURN:
+                // Client closed the connection.
+                spdlog::info("Client closed connection.");
+                closeConnection();
+                break;
+            default:
+                // We'll consider other errors fatal.
+                spdlog::error("SSL encountered error {}, terminating this connection.", sslError);
+                closeConnection();
+                break;
+            }
+        }
+        else
+        {
+            spdlog::info("RECEIVED: {}", std::string(buffer, buffer + bytesRead));
+        }
     }
 }
 
-int OrchestrationConnection::findSslPsk(
+void TlsConnection::closeConnection()
+{
+    isStopping = true;
+    shutdown(clientSocketHandle, SHUT_RDWR);
+    close(clientSocketHandle);
+    if (onConnectionClosed)
+    {
+        onConnectionClosed();
+    }
+}
+
+int TlsConnection::findSslPsk(
     SSL *ssl,
     const unsigned char *identity,
     size_t identity_len,
     SSL_SESSION **sess)
 {
-    spdlog::info("IDENTITY: {}", std::string(identity, identity + identity_len));
-
-    // Convert key hex string to bytes
-    long keyLength;
-    OpenSslPtr keyPtr(OPENSSL_hexstr2buf(preSharedKeyHexStr.c_str(), &keyLength));
-    if (keyPtr.get() == nullptr)
-    {
-        spdlog::error(
-            "Could not convert PSK hex string to byte array. String: {}",
-            preSharedKeyHexStr);
-        return 0;
-    }
-
     spdlog::info(
         "findSslPsk: Using key {}",
-        spdlog::to_hex(
-            reinterpret_cast<const unsigned char*>(keyPtr.get()),
-            reinterpret_cast<const unsigned char*>(keyPtr.get()) + keyLength));
+        spdlog::to_hex(preSharedKey.begin(), preSharedKey.end()));
 
     // Find the cipher we'll be using
     // identified by IANA mapping: https://testssl.sh/openssl-iana.mapping.html
@@ -156,8 +202,8 @@ int OrchestrationConnection::findSslPsk(
 
     if (!SSL_SESSION_set1_master_key(
         temporarySslSession.get(),
-        reinterpret_cast<const unsigned char*>(keyPtr.get()),
-        keyLength))
+        preSharedKey.data(),
+        preSharedKey.size()))
     {
         spdlog::error("Could not set key on new SSL session!");
         return 0;

@@ -1,32 +1,32 @@
 /**
- * @file JanusFtlOrchestrator.cpp
+ * @file TlsConnectionManager.cpp
  * @author Hayden McAfee (hayden@outlook.com)
- * @version 0.1
- * @date 2020-10-18
- * 
+ * @date 2020-10-25
  * @copyright Copyright (c) 2020 Hayden McAfee
- * 
  */
 
-#include "JanusFtlOrchestrator.h"
+#include "TlsConnectionManager.h"
 
-#include "OrchestrationConnection.h"
+#include "TlsConnection.h"
 #include "Util.h"
 
 #include <openssl/ssl.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <stdexcept>
-#include <string.h>
 
 #pragma region Constructor/Destructor
-JanusFtlOrchestrator::JanusFtlOrchestrator(in_port_t listenPort) : 
+TlsConnectionManager::TlsConnectionManager(
+    std::vector<uint8_t> preSharedKey,
+    in_port_t listenPort
+) :
+    preSharedKey(preSharedKey),
     listenPort(listenPort)
 { }
 #pragma endregion
 
-#pragma region Public methods
-void JanusFtlOrchestrator::Init()
+#pragma region IConnectionManager
+void TlsConnectionManager::Init()
 {
     // Initialize OpenSSL pieces
     SSL_load_error_strings();
@@ -34,7 +34,7 @@ void JanusFtlOrchestrator::Init()
     OpenSSL_add_all_algorithms();
 }
 
-void JanusFtlOrchestrator::Listen()
+void TlsConnectionManager::Listen()
 {
     sockaddr_in listenAddr
     {
@@ -99,15 +99,26 @@ void JanusFtlOrchestrator::Listen()
 
         spdlog::info("Accepted new connection...");
 
-        std::shared_ptr<OrchestrationConnection> connection = 
-            std::make_shared<OrchestrationConnection>(clientHandle, "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
-        pendingConnections.insert(connection);
+        std::shared_ptr<TlsConnection> connection = 
+            std::make_shared<TlsConnection>(clientHandle, acceptedAddr, preSharedKey);
+
+        if (onNewConnection)
+        {
+            onNewConnection(connection);
+        }
+        else
+        {
+            spdlog::warn("Accepted a new connection, but nobody was listening. :(");
+        }
+
         connection->Start();
     }
 }
 
-void JanusFtlOrchestrator::Stop()
+void TlsConnectionManager::SetOnNewConnection(
+    std::function<void(std::shared_ptr<IConnection>)> onNewConnection)
 {
-    // TODO
+    this->onNewConnection = onNewConnection;
 }
+
 #pragma endregion
