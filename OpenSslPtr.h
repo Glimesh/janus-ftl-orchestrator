@@ -2,11 +2,8 @@
  * @file OpenSslPtr.h
  * @author Hayden McAfee (hayden@outlook.com)
  * @brief A set of RAII smart pointers for OpenSSL types
- * @version 0.1
  * @date 2020-10-23
- * 
  * @copyright Copyright (c) 2020 Hayden McAfee
- * 
  */
 
 #pragma once

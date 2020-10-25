@@ -1,11 +1,8 @@
 /**
  * @file TlsConnection.cpp
  * @author Hayden McAfee (hayden@outlook.com)
- * @version 0.1
  * @date 2020-10-18
- * 
  * @copyright Copyright (c) 2020 Hayden McAfee
- * 
  */
 
 #include "TlsConnection.h"
@@ -40,7 +37,7 @@ void TlsConnection::Start()
 
 void TlsConnection::Stop()
 {
-    isStopping = true;
+    closeConnection();
     if (connectionThread.joinable())
     {
         connectionThread.join();
@@ -116,7 +113,7 @@ void TlsConnection::startConnectionThread()
         return;
     }
 
-    spdlog::info("Accepted connection apparently");
+    spdlog::info("Accepted new TLS connection");
 
     while (true)
     {

@@ -1,11 +1,8 @@
 /**
  * @file TlsConnection.h
  * @author Hayden McAfee (hayden@outlook.com)
- * @version 0.1
  * @date 2020-10-18
- * 
  * @copyright Copyright (c) 2020 Hayden McAfee
- * 
  */
 
 #pragma once
