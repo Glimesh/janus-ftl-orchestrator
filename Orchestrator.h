@@ -7,7 +7,10 @@
 
 #pragma once
 
+#include "FtlTypes.h"
+
 #include <arpa/inet.h>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -16,6 +19,7 @@
 class Configuration;
 class IConnection;
 class IConnectionManager;
+class StreamStore;
 
 /**
  * @brief
@@ -44,10 +48,27 @@ public:
 private:
     /* Private members */
     const std::shared_ptr<IConnectionManager> connectionManager;
+    std::unique_ptr<StreamStore> streamStore;
     std::mutex connectionsMutex;
     std::set<std::shared_ptr<IConnection>> connections;
+    std::mutex streamsMutex;
+    std::map<ftl_channel_id_t, std::shared_ptr<IConnection>> channelIngestConnections;
 
     /* Private methods */
     void newConnection(std::shared_ptr<IConnection> connection);
     void connectionClosed(std::shared_ptr<IConnection> connection);
+    void ingestNewStream(
+        std::shared_ptr<IConnection> connection,
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId);
+    void ingestStreamEnded(
+        std::shared_ptr<IConnection> connection,
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId);
+    void streamViewersUpdated(
+        std::shared_ptr<IConnection> connection,
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId,
+        uint32_t viewerCount);
+    
 };
