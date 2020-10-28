@@ -28,6 +28,17 @@ void StreamStore::AddStream(std::shared_ptr<Stream> stream)
     streamByChannelId[channelId] = stream;
 }
 
+bool StreamStore::RemoveStream(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+{
+    std::lock_guard<std::mutex> lock(streamStoreMutex);
+    if (streamByChannelId.count(channelId) > 0)
+    {
+        streamByChannelId.erase(channelId);
+        return true;
+    }
+    return false;
+}
+
 std::shared_ptr<Stream> StreamStore::GetStreamByChannelId(ftl_channel_id_t channelId)
 {
     std::lock_guard<std::mutex> lock(streamStoreMutex);

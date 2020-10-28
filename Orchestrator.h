@@ -9,6 +9,8 @@
 
 #include "FtlTypes.h"
 
+#include "StreamStore.h"
+
 #include <arpa/inet.h>
 #include <map>
 #include <memory>
@@ -19,7 +21,6 @@
 class Configuration;
 class IConnection;
 class IConnectionManager;
-class StreamStore;
 
 /**
  * @brief

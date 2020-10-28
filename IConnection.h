@@ -13,45 +13,15 @@
 #include <string>
 
 /**
- * @brief Describes a type of FTL server instance
- */
-enum class FtlServerKind
-{
-    Unknown = 0, // Unknown/uninitialized value
-    Ingest = 1,  // FTL Ingest server, used to receive video from streamers and relay it
-    Node = 2,    // CURRENTLY UNUSED. FTL Node server, used as an additional relay point b/t ingests and edges
-    Edge = 3,    // FTL Edge server, used to relay stream data from ingest servers to viewers.
-};
-
-/**
- * @brief IConnection represents a generic connection to an FTL instance.
+ * @brief
+ *  IConnection represents a high-level connection to an FTL instance over an IConnectionTransport.
+ *  Incoming binary data from IConnectionTransport is translated to discrete methods and events
+ *  by the IConnection implementation.
  */
 class IConnection
 {
 public:
     virtual ~IConnection() = default;
-
-    /**
-     * @brief Translates FtlServerKind enum to a human readable string value
-     * 
-     * @param serverKind server kind enum value
-     * @return std::string readable string value
-     */
-    static std::string FtlServerKindToString(FtlServerKind serverKind)
-    {
-        switch (serverKind)
-        {
-        case FtlServerKind::Edge:
-            return "Edge";
-        case FtlServerKind::Node:
-            return "Node";
-        case FtlServerKind::Ingest:
-            return "Ingest";
-        case FtlServerKind::Unknown:
-        default:
-            return "Unknown";
-        }
-    }
 
     /**
      * @brief Starts the connection in a new thread
@@ -121,11 +91,4 @@ public:
      * @return std::string the hostname
      */
     virtual std::string GetHostname() = 0;
-
-    /**
-     * @brief Get the Server Kind of the FTL server represented by this connection
-     * 
-     * @return FtlServerKind kind of FTL server
-     */
-    virtual FtlServerKind GetServerKind() = 0;
 };

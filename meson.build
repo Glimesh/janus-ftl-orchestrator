@@ -4,6 +4,8 @@ sources = files([
     'Configuration.cpp',
     'main.cpp',
     'Orchestrator.cpp',
+    'Stream.cpp',
+    'StreamStore.cpp',
     'TlsConnection.cpp',
     'TlsConnectionManager.cpp'
 ])
@@ -30,7 +32,9 @@ testsources = files([
     'test/test.cpp',
     'test/OrchestratorTests.cpp',
     # Project sources
-    'Orchestrator.cpp'
+    'Orchestrator.cpp',
+    'Stream.cpp',
+    'StreamStore.cpp'
 ])
 
 executable(

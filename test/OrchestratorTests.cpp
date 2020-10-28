@@ -56,3 +56,64 @@ TEST_CASE("Orchestrator keeps track of new connections and closed connections", 
 
     REQUIRE(orchestrator->GetConnections().size() == 0);
 }
+
+TEST_CASE("New and ended streams are properly communicated between connections", "[orchestrator]")
+{
+    // Set up orchestrator instance
+    std::shared_ptr<MockConnectionManager> mockConnectionManager = 
+        std::make_shared<MockConnectionManager>();
+    std::unique_ptr<Orchestrator> orchestrator = 
+        std::make_unique<Orchestrator>(mockConnectionManager);
+    orchestrator->Init();
+
+    // Set up a few mock ingest connections
+    std::shared_ptr<MockConnection> mockIngestAlpha = 
+        std::make_shared<MockConnection>("mock-ingest-alpha", FtlServerKind::Ingest);
+    std::shared_ptr<MockConnection> mockIngestBravo = 
+        std::make_shared<MockConnection>("mock-ingest-bravo", FtlServerKind::Ingest);
+
+    // Set up a few mock edge connections
+    std::shared_ptr<MockConnection> mockEdgeAlpha = 
+        std::make_shared<MockConnection>("mock-edge-alpha", FtlServerKind::Edge);
+    std::shared_ptr<MockConnection> mockEdgeBravo = 
+        std::make_shared<MockConnection>("mock-edge-bravo", FtlServerKind::Edge);
+    std::shared_ptr<MockConnection> mockEdgeCharlie = 
+        std::make_shared<MockConnection>("mock-edge-charlie", FtlServerKind::Edge);
+
+    // Register connections
+    mockConnectionManager->MockFireNewConnection(mockIngestAlpha);
+    mockConnectionManager->MockFireNewConnection(mockIngestBravo);
+    mockConnectionManager->MockFireNewConnection(mockEdgeAlpha);
+    mockConnectionManager->MockFireNewConnection(mockEdgeBravo);
+    mockConnectionManager->MockFireNewConnection(mockEdgeCharlie);
+
+    // Have ingest alpha report a new ingest, and make sure this is reported to the edge connections
+    ftl_channel_id_t newChannelId = 1234;
+    ftl_stream_id_t newStreamId = 5678;
+    bool mockEdgeAlphaSawNewStream = false;
+    bool mockEdgeBravoSawNewStream = false;
+    bool mockEdgeCharlieSawNewStream = false;
+    mockEdgeAlpha->SetOnIngestNewStream(
+        [&mockEdgeAlphaSawNewStream, newChannelId, newStreamId]
+        (ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+        {
+            mockEdgeAlphaSawNewStream = (channelId == newChannelId && streamId == newStreamId);
+        });
+    mockEdgeBravo->SetOnIngestNewStream(
+        [&mockEdgeBravoSawNewStream, newChannelId, newStreamId]
+        (ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+        {
+            mockEdgeBravoSawNewStream = (channelId == newChannelId && streamId == newStreamId);
+        });
+    mockEdgeCharlie->SetOnIngestNewStream(
+        [&mockEdgeCharlieSawNewStream, newChannelId, newStreamId]
+        (ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+        {
+            mockEdgeCharlieSawNewStream = (channelId == newChannelId && streamId == newStreamId);
+        });
+    mockIngestAlpha->MockFireOnIngestNewStream(newChannelId, newStreamId);
+
+    REQUIRE(mockEdgeAlphaSawNewStream);
+    REQUIRE(mockEdgeBravoSawNewStream);
+    REQUIRE(mockEdgeCharlieSawNewStream);
+}

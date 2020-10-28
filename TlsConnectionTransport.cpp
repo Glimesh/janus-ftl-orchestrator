@@ -1,11 +1,11 @@
 /**
- * @file TlsConnection.cpp
+ * @file TlsConnectionTransport.cpp
  * @author Hayden McAfee (hayden@outlook.com)
  * @date 2020-10-18
  * @copyright Copyright (c) 2020 Hayden McAfee
  */
 
-#include "TlsConnection.h"
+#include "TlsConnectionTransport.h"
 
 #include "OpenSslPtr.h"
 
@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 #pragma region Constructor/Destructor
-TlsConnection::TlsConnection(
+TlsConnectionTransport::TlsConnectionTransport(
     int clientSocketHandle,
     sockaddr_in acceptAddress,
     std::vector<uint8_t> preSharedKey
@@ -28,54 +28,8 @@ TlsConnection::TlsConnection(
 { }
 #pragma endregion
 
-#pragma region IOrchestrationConnection
-void TlsConnection::Start()
-{
-    connectionThread = std::thread(&TlsConnection::startConnectionThread, this);
-    connectionThread.detach();
-}
-
-void TlsConnection::Stop()
-{
-    closeConnection();
-    if (connectionThread.joinable())
-    {
-        connectionThread.join();
-    }
-}
-
-void TlsConnection::SetOnConnectionClosed(std::function<void(void)> onConnectionClosed)
-{
-    this->onConnectionClosed = onConnectionClosed;
-}
-
-std::string TlsConnection::GetHostname()
-{
-    return hostname;
-}
-
-FtlServerKind TlsConnection::GetServerKind()
-{
-    return serverKind;
-}
-
-#pragma endregion
-
-#pragma region Private static methods
-int TlsConnection::callbackFindSslPsk(
-    SSL *ssl,
-    const unsigned char *identity,
-    size_t identity_len,
-    SSL_SESSION **sess)
-{
-    // First, pull reference to TlsConnection instance out of SSL context
-    TlsConnection* that = reinterpret_cast<TlsConnection*>(SSL_get_ex_data(ssl, 0));
-    return that->findSslPsk(ssl, identity, identity_len, sess);
-}
-#pragma endregion
-
-#pragma region Private methods
-void TlsConnection::startConnectionThread()
+#pragma region IConnectionTransport
+void TlsConnectionTransport::Start()
 {
     SslCtxPtr sslContext(SSL_CTX_new(TLS_server_method()));
 
@@ -93,10 +47,10 @@ void TlsConnection::startConnectionThread()
     }
 
     // Set up callback to locate pre-shared key
-    SSL_CTX_set_psk_find_session_callback(sslContext.get(), &TlsConnection::callbackFindSslPsk);
+    SSL_CTX_set_psk_find_session_callback(sslContext.get(), &TlsConnectionTransport::callbackFindSslPsk);
 
     // Create new SSL instance from context
-    SslPtr ssl(SSL_new(sslContext.get()));
+    ssl = SslPtr(SSL_new(sslContext.get()));
 
     // Add self-reference to the SSL instance so we can get back from callback functions
     SSL_set_ex_data(ssl.get(), 0, this);
@@ -110,57 +64,83 @@ void TlsConnection::startConnectionThread()
         ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
         spdlog::warn("Failure accepting TLS connection: {}", sslErrStr);
         closeConnection();
-        return;
     }
-
-    spdlog::info("Accepted new TLS connection");
-
-    while (true)
+    else
     {
-        // use SSL_read/SSL_write here
-        if (isStopping)
-        {
-            break;
-        }
-
-        // Try to read some bytes
-        char buffer[512];
-        int bytesRead = SSL_read(ssl.get(), buffer, sizeof(buffer));
-        if (bytesRead <= 0)
-        {
-            int sslError = SSL_get_error(ssl.get(), bytesRead);
-            switch (sslError)
-            {
-            // Continuable errors:
-            case SSL_ERROR_NONE:
-                // Nothing to see here...
-            case SSL_ERROR_WANT_READ:
-                // Not enough data available; keep trying.
-                break;
-
-            // Non-continuable errors:
-            case SSL_ERROR_ZERO_RETURN:
-                // Client closed the connection.
-                spdlog::info("Client closed connection.");
-                closeConnection();
-                break;
-            default:
-                // We'll consider other errors fatal.
-                spdlog::error("SSL encountered error {}, terminating this connection.", sslError);
-                closeConnection();
-                break;
-            }
-        }
-        else
-        {
-            spdlog::info("RECEIVED: {}", std::string(buffer, buffer + bytesRead));
-        }
+        spdlog::info("Accepted new TLS connection");
     }
 }
 
-void TlsConnection::closeConnection()
+void TlsConnectionTransport::Stop()
 {
-    isStopping = true;
+    shutdown(clientSocketHandle, SHUT_RDWR);
+    close(clientSocketHandle);
+}
+
+std::vector<uint8_t> TlsConnectionTransport::Read()
+{
+    // Try to read some bytes
+    char buffer[512];
+    int bytesRead = SSL_read(ssl.get(), buffer, sizeof(buffer));
+    if (bytesRead <= 0)
+    {
+        int sslError = SSL_get_error(ssl.get(), bytesRead);
+        switch (sslError)
+        {
+        // Continuable errors:
+        case SSL_ERROR_NONE:
+            // Nothing to see here...
+        case SSL_ERROR_WANT_READ:
+            // Not enough data available; keep trying.
+            break;
+
+        // Non-continuable errors:
+        case SSL_ERROR_ZERO_RETURN:
+            // Client closed the connection.
+            spdlog::info("Client closed connection.");
+            closeConnection();
+            break;
+        default:
+            // We'll consider other errors fatal.
+            spdlog::error("SSL encountered error {}, terminating this connection.", sslError);
+            closeConnection();
+            break;
+        }
+    }
+    else
+    {
+        spdlog::info("RECEIVED: {}", std::string(buffer, buffer + bytesRead));
+        return std::vector<uint8_t>(buffer, buffer + bytesRead);
+    }
+}
+
+void TlsConnectionTransport::Write(std::vector<uint8_t> bytes)
+{
+    SSL_write(ssl.get(), bytes.data(), bytes.size());
+}
+
+void TlsConnectionTransport::SetOnConnectionClosed(std::function<void(void)> onConnectionClosed)
+{
+    this->onConnectionClosed = onConnectionClosed;
+}
+#pragma endregion
+
+#pragma region Private static methods
+int TlsConnectionTransport::callbackFindSslPsk(
+    SSL *ssl,
+    const unsigned char *identity,
+    size_t identity_len,
+    SSL_SESSION **sess)
+{
+    // First, pull reference to TlsConnectionTransport instance out of SSL context
+    TlsConnectionTransport* that = reinterpret_cast<TlsConnectionTransport*>(SSL_get_ex_data(ssl, 0));
+    return that->findSslPsk(ssl, identity, identity_len, sess);
+}
+#pragma endregion
+
+#pragma region Private methods
+void TlsConnectionTransport::closeConnection()
+{
     shutdown(clientSocketHandle, SHUT_RDWR);
     close(clientSocketHandle);
     if (onConnectionClosed)
@@ -169,7 +149,7 @@ void TlsConnection::closeConnection()
     }
 }
 
-int TlsConnection::findSslPsk(
+int TlsConnectionTransport::findSslPsk(
     SSL *ssl,
     const unsigned char *identity,
     size_t identity_len,
