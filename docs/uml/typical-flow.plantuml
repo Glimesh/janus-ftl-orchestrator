@@ -1,0 +1,55 @@
+@startuml
+autonumber
+title Typical FTL Orchestration Service Flow
+
+actor nyStreamer as "NYC Streamer"
+participant nyc as "Janus NYC Ingest"
+participant orchestrator as "FTL Orchestration Service"
+participant sea as "Janus SEA Edge"
+actor seaViewer as "SEA Viewer"
+
+== FTL Instance Registration ==
+nyc --> orchestrator: Intro Request
+note left
+    Ingest server registers
+    with the Orchestration Service
+end note
+nyc <-- orchestrator: Intro Response
+sea --> orchestrator: Intro Request
+note right
+    Edge server registers
+    with the Orchestration Service
+end note
+sea <-- orchestrator: Intro Response
+
+== Streamer Starts Streaming ==
+nyStreamer -> nyc: New stream starts for channel 1
+note left
+    Streamer begins streaming
+end note
+nyc --> orchestrator: Stream Available Request
+nyc <-- orchestrator: Stream Available Response
+
+== Viewer Starts Viewing ==
+seaViewer -> sea: Request to watch channel 1
+note right
+    Viewer starts watching
+end note
+sea --> orchestrator: Subscribe Channel Request
+sea <-- orchestrator: Subscribe Channel Response
+sea <-- orchestrator: Stream Available Request
+sea --> nyc: Request stream relay for channel 1
+sea <-- nyc: Channel 1 stream is relayed
+sea --> seaViewer: Channel 1 stream is delivered via WebRTC
+
+== Streamer Stops Streaming ==
+nyStreamer -> nyc: Stream stops for channel 1
+note left
+    Streamer stops streaming
+end note
+nyc --> orchestrator: Stream removed request
+nyc <-- orchestrator: Stream removed response
+orchestrator --> sea: Stream removed request
+orchestrator <-- sea: Stream removed response
+sea --> seaViewer: Channel 1 stream ended
+@enduml

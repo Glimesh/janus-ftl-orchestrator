@@ -6,6 +6,10 @@ By orchestrating many Janus instances with this service, load from ingest and vi
 
 These are early days, so we're still in the process of standing up the architecture and establishing basic connections.
 
+# Protocol
+
+Please see [PROTOCOL.md](/docs/PROTOCOL.md)
+
 # Dependencies
 
 These are available in Ubuntu's package repos:
