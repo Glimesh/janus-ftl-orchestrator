@@ -15,7 +15,7 @@
 /**
  * @brief Describes a class that accepts new IConnections
  */
-template <class T>
+template <class TConnection>
 class IConnectionManager
 {
 public:
@@ -41,5 +41,5 @@ public:
      * @param onNewConnection callback to fire
      */
     virtual void SetOnNewConnection(
-        std::function<void(std::shared_ptr<T>)> onNewConnection) = 0;
+        std::function<void(std::shared_ptr<TConnection>)> onNewConnection) = 0;
 };

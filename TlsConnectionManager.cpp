@@ -7,6 +7,7 @@
 
 #include "TlsConnectionManager.h"
 
+#include "FtlConnection.h"
 #include "TlsConnectionTransport.h"
 #include "Util.h"
 
@@ -127,4 +128,10 @@ void TlsConnectionManager<T>::SetOnNewConnection(
     this->onNewConnection = onNewConnection;
 }
 
+#pragma endregion
+
+#pragma region Template instantiations
+// Yeah, this is weird, but necessary.
+// See https://stackoverflow.com/questions/495021/why-can-templates-only-be-implemented-in-the-header-file
+template class TlsConnectionManager<FtlConnection>;
 #pragma endregion

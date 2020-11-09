@@ -31,8 +31,10 @@ executable(
 testsources = files([
     # Test sources
     'test/test.cpp',
-    'test/OrchestratorTests.cpp',
+    # Unit tests
+    'test/unit/OrchestratorUnitTests.cpp',
     # Project sources
+    'FtlConnection.cpp',
     'Orchestrator.cpp',
     'Stream.cpp',
     'StreamStore.cpp'

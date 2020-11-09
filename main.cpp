@@ -26,8 +26,8 @@ int main()
     // Set up our service to listen to orchestration connections via TCP/TLS
     auto connectionManager = 
         std::make_shared<TlsConnectionManager<FtlConnection>>(configuration->GetPreSharedKey());
-    std::unique_ptr<Orchestrator> orchestrator = 
-        std::make_unique<Orchestrator>(connectionManager);
+    std::unique_ptr<Orchestrator<FtlConnection>> orchestrator = 
+        std::make_unique<Orchestrator<FtlConnection>>(connectionManager);
     
     // Initialize our classes
     connectionManager->Init();

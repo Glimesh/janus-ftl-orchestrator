@@ -7,6 +7,7 @@
 
 #include "Orchestrator.h"
 
+#include "FtlConnection.h"
 #include "IConnection.h"
 #include "IConnectionManager.h"
 #include "Configuration.h"
@@ -16,13 +17,17 @@
 #include <spdlog/spdlog.h>
 
 #pragma region Constructor/Destructor
-Orchestrator::Orchestrator(std::shared_ptr<IConnectionManager> connectionManager) : 
+template <class TConnection>
+Orchestrator<TConnection>::Orchestrator(
+    std::shared_ptr<IConnectionManager<TConnection>> connectionManager
+) : 
     connectionManager(connectionManager)
 { }
 #pragma endregion
 
 #pragma region Public methods
-void Orchestrator::Init()
+template <class TConnection>
+void Orchestrator<TConnection>::Init()
 {
     // Initialize StreamStore
     streamStore = std::make_unique<StreamStore>();
@@ -32,19 +37,18 @@ void Orchestrator::Init()
         std::bind(&Orchestrator::newConnection, this, std::placeholders::_1));
 }
 
-const std::set<std::shared_ptr<IConnection>> Orchestrator::GetConnections()
+template <class TConnection>
+const std::set<std::shared_ptr<TConnection>> Orchestrator<TConnection>::GetConnections()
 {
     return connections;
 }
 #pragma endregion
 
 #pragma region Private methods
-void Orchestrator::newConnection(std::shared_ptr<IConnection> connection)
+template <class TConnection>
+void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> connection)
 {
-    spdlog::info(
-        "New connection established to {} @ {}",
-        IConnection::FtlServerKindToString(connection->GetServerKind()),
-        connection->GetHostname());
+    spdlog::info("New connection");
 
     // Set IConnection callbacks
     connection->SetOnConnectionClosed(
@@ -61,19 +65,18 @@ void Orchestrator::newConnection(std::shared_ptr<IConnection> connection)
     connections.insert(connection);
 }
 
-void Orchestrator::connectionClosed(std::shared_ptr<IConnection> connection)
+template <class TConnection>
+void Orchestrator<TConnection>::connectionClosed(std::shared_ptr<TConnection> connection)
 {
-    spdlog::info(
-        "Connection closed to {} @ {}",
-        IConnection::FtlServerKindToString(connection->GetServerKind()),
-        connection->GetHostname());
+    spdlog::info("Connection closed to {}", connection->GetHostname());
 
     std::lock_guard<std::mutex> lock(connectionsMutex);
     connections.erase(connection);
 }
 
-void Orchestrator::ingestNewStream(
-    std::shared_ptr<IConnection> connection,
+template <class TConnection>
+void Orchestrator<TConnection>::ingestNewStream(
+    std::shared_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId)
 {
@@ -84,8 +87,9 @@ void Orchestrator::ingestNewStream(
     // TODO: Notify other connections that a new stream is available
 }
 
-void Orchestrator::ingestStreamEnded(
-    std::shared_ptr<IConnection> connection,
+template <class TConnection>
+void Orchestrator<TConnection>::ingestStreamEnded(
+    std::shared_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId)
 {
@@ -102,12 +106,23 @@ void Orchestrator::ingestStreamEnded(
     // TODO: Notify other connections that this stream has ended
 }
 
-void Orchestrator::streamViewersUpdated(
-    std::shared_ptr<IConnection> connection,
+template <class TConnection>
+void Orchestrator<TConnection>::streamViewersUpdated(
+    std::shared_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId,
     uint32_t viewerCount)
 {
     
 }
+#pragma endregion
+
+#pragma region Template instantiations
+// Yeah, this is weird, but necessary.
+// See https://stackoverflow.com/questions/495021/why-can-templates-only-be-implemented-in-the-header-file
+
+#include "test/mocks/MockConnection.h"
+
+template class Orchestrator<FtlConnection>;
+template class Orchestrator<MockConnection>;
 #pragma endregion

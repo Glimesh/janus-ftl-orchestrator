@@ -16,9 +16,8 @@ class MockConnection : public IConnection
 {
 public:
     // Mock constructor
-    MockConnection(std::string hostname, FtlServerKind serverKind) : 
-        hostname(hostname),
-        serverKind(serverKind)
+    MockConnection(std::string hostname) : 
+        hostname(hostname)
     { }
 
     // Mock utilities
@@ -107,18 +106,12 @@ public:
         return hostname;
     }
 
-    FtlServerKind GetServerKind() override
-    {
-        return serverKind;
-    }
-
 private:
     std::function<void(void)> onConnectionClosed;
     std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onIngestNewStream;
     std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onIngestStreamEnded;
     std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamViewersUpdated;
     std::string hostname;
-    FtlServerKind serverKind;
 
     // Mock callbacks
     std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamAvailable;
