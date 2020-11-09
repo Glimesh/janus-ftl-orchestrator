@@ -44,7 +44,7 @@ public:
     void Start() override;
     void Stop() override;
     std::vector<uint8_t> Read() override;
-    void Write(std::vector<uint8_t> bytes) override;
+    void Write(const std::vector<uint8_t>& bytes) override;
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
 
 private:

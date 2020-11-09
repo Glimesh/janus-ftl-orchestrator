@@ -10,4 +10,30 @@
 
 #pragma once
 
-struct 
+#include <cstdint>
+
+enum class OrchestrationMessageDirectionKind
+{
+    Request = 0,
+    Response = 1,
+};
+
+enum class OrchestrationMessageType : uint8_t
+{
+    Intro              = 0,
+    Outro              = 1,
+    SubscribeChannel   = 16,
+    UnsubscribeChannel = 17,
+    StreamAvailable    = 20,
+    StreamRemoved      = 21,
+    StreamMetadata     = 22,
+};
+
+struct OrchestrationMessageHeader
+{
+    OrchestrationMessageDirectionKind MessageDirection;
+    bool MessageFailure;
+    OrchestrationMessageType MessageType;
+    uint8_t MessageId;
+    uint16_t MessagePayloadLength;
+};

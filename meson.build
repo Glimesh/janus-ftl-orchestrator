@@ -2,21 +2,22 @@ project('janus-ftl-orchestrator', 'cpp')
 
 sources = files([
     'Configuration.cpp',
+    'FtlConnection.cpp',
     'main.cpp',
     'Orchestrator.cpp',
     'Stream.cpp',
     'StreamStore.cpp',
-    'TlsConnection.cpp',
-    'TlsConnectionManager.cpp'
+    'TlsConnectionManager.cpp',
+    'TlsConnectionTransport.cpp',
 ])
 
 deps = [
     dependency('libssl'),
     dependency('libcrypto'),
-    dependency('spdlog')
+    dependency('spdlog'),
 ]
 
-cppargs = ['-Wno-unknown-pragmas', '-DCPPHTTPLIB_OPENSSL_SUPPORT']
+cppargs = ['-std=c++20', '-Wno-unknown-pragmas', '-DCPPHTTPLIB_OPENSSL_SUPPORT']
 
 executable(
     'janus-ftl-orchestrator',

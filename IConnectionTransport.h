@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 /**
@@ -40,7 +41,7 @@ public:
      * @brief Write bytes to the transport
      * @param bytes bytes to be written
      */
-    virtual void Write(std::vector<uint8_t> bytes) = 0;
+    virtual void Write(const std::vector<uint8_t>& bytes) = 0;
 
     /**
      * @brief Sets the callback that will fire when this connection has been closed.

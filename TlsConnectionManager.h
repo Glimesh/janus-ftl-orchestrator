@@ -18,7 +18,8 @@
 /**
  * @brief Class responsible for accepting new TlsConnections
  */
-class TlsConnectionManager : public IConnectionManager
+template <class T>
+class TlsConnectionManager : public IConnectionManager<T>
 {
 public:
     /* Constructor/Destructor */
@@ -30,7 +31,7 @@ public:
     void Init() override;
     void Listen() override;
     void SetOnNewConnection(
-        std::function<void(std::shared_ptr<IConnection>)> onNewConnection) override;
+        std::function<void(std::shared_ptr<T>)> onNewConnection) override;
 
 private:
     static constexpr in_port_t DEFAULT_LISTEN_PORT = 8085;
@@ -38,5 +39,5 @@ private:
     const std::vector<uint8_t> preSharedKey;
     const in_port_t listenPort;
     int listenSocketHandle;
-    std::function<void(std::shared_ptr<IConnection>)> onNewConnection;
+    std::function<void(std::shared_ptr<T>)> onNewConnection;
 };

@@ -7,8 +7,8 @@
  */
 
 #include "Configuration.h"
+#include "FtlConnection.h"
 #include "Orchestrator.h"
-#include "TlsConnection.h"
 #include "TlsConnectionManager.h"
 
 #include <memory>
@@ -24,8 +24,8 @@ int main()
     configuration->Load();
 
     // Set up our service to listen to orchestration connections via TCP/TLS
-    std::shared_ptr<TlsConnectionManager> connectionManager = 
-        std::make_shared<TlsConnectionManager>(configuration->GetPreSharedKey());
+    auto connectionManager = 
+        std::make_shared<TlsConnectionManager<FtlConnection>>(configuration->GetPreSharedKey());
     std::unique_ptr<Orchestrator> orchestrator = 
         std::make_unique<Orchestrator>(connectionManager);
     

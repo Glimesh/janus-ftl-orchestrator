@@ -11,6 +11,7 @@
 
 #include "FtlTypes.h"
 #include "IConnectionTransport.h"
+#include "OrchestrationProtocolTypes.h"
 
 #include <atomic>
 #include <functional>
@@ -67,5 +68,77 @@ private:
      */
     void onTransportConnectionClosed();
 
-    
+    /**
+     * @brief Attempts to parse an Orchestration Protocol Message Header out of the given bytes
+     * @param bytes bytes to parse
+     * @return OrchestrationMessageHeader resulting header information
+     */
+    OrchestrationMessageHeader parseMessageHeader(const std::vector<uint8_t>& bytes);
+
+    /**
+     * @brief Processes an Orchestration Protocol Message with a payload.
+     * @param header the parsed header
+     * @param payload the raw payload data
+     */
+    void processMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type Intro
+     */
+    void processIntroMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type Outro
+     */
+    void processOutroMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type SubscribeChannel
+     */
+    void processSubscribeChannelMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type UnsubscribeChannel
+     */
+    void processUnsubscribeChannelMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type StreamAvailable
+     */
+    void processStreamAvailableMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type StreamRemoved
+     */
+    void processStreamRemovedMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Process Orchestration Protocol Nessage of type StreamMetadata
+     */
+    void processStreamMetadataMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
+
+    /**
+     * @brief Sends the given FTL Orchestration Protocol message across the transport
+     * @param header Orchestration Protocol Message Header
+     * @param payload Orchestration Protocol Message Payload
+     */
+    void sendMessage(
+        const OrchestrationMessageHeader& header,
+        const std::vector<uint8_t>& payload);
 };

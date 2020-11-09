@@ -114,7 +114,7 @@ std::vector<uint8_t> TlsConnectionTransport::Read()
     }
 }
 
-void TlsConnectionTransport::Write(std::vector<uint8_t> bytes)
+void TlsConnectionTransport::Write(const std::vector<uint8_t>& bytes)
 {
     SSL_write(ssl.get(), bytes.data(), bytes.size());
 }
