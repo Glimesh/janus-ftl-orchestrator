@@ -53,9 +53,9 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
     // Set IConnection callbacks
     connection->SetOnConnectionClosed(
         std::bind(&Orchestrator::connectionClosed, this, connection));
-    connection->SetOnIngestNewStream(
+    connection->SetOnStreamAvailable(
         std::bind(
-            &Orchestrator::ingestNewStream,
+            &Orchestrator::streamAvailable,
             this,
             connection,
             std::placeholders::_1,
@@ -75,7 +75,7 @@ void Orchestrator<TConnection>::connectionClosed(std::shared_ptr<TConnection> co
 }
 
 template <class TConnection>
-void Orchestrator<TConnection>::ingestNewStream(
+void Orchestrator<TConnection>::streamAvailable(
     std::shared_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId)
@@ -88,7 +88,7 @@ void Orchestrator<TConnection>::ingestNewStream(
 }
 
 template <class TConnection>
-void Orchestrator<TConnection>::ingestStreamEnded(
+void Orchestrator<TConnection>::streamRemoved(
     std::shared_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId)
@@ -107,7 +107,7 @@ void Orchestrator<TConnection>::ingestStreamEnded(
 }
 
 template <class TConnection>
-void Orchestrator<TConnection>::streamViewersUpdated(
+void Orchestrator<TConnection>::streamMetadata(
     std::shared_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId,

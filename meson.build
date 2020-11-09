@@ -32,6 +32,7 @@ testsources = files([
     # Test sources
     'test/test.cpp',
     # Unit tests
+    'test/unit/FtlConnectionUnitTests.cpp',
     'test/unit/OrchestratorUnitTests.cpp',
     # Project sources
     'FtlConnection.cpp',

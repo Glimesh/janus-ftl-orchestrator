@@ -26,19 +26,22 @@ public:
         onConnectionClosed();
     }
 
-    void MockFireOnIngestNewStream(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+    void MockFireOnStreamAvailable(
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId,
+        std::string hostname)
     {
-        if (onIngestNewStream)
+        if (onStreamAvailable)
         {
-            onIngestNewStream(channelId, streamId);
+            onStreamAvailable(channelId, streamId, hostname);
         }
     }
 
-    void MockFireOnIngestStreamEnded(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+    void MockFireOnStreamRemoved(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
     {
-        if (onIngestStreamEnded)
+        if (onStreamRemoved)
         {
-            onIngestStreamEnded(channelId, streamId);
+            onStreamRemoved(channelId, streamId);
         }
     }
 
@@ -48,10 +51,10 @@ public:
         this->mockOnSendStreamAvailable = mockOnSendStreamAvailable;
     }
 
-    void SetMockOnSendStreamEnded(
-        std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamEnded)
+    void SetMockOnSendStreamRemoved(
+        std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamRemoved)
     {
-        this->mockOnSendStreamEnded = mockOnSendStreamEnded;
+        this->mockOnSendStreamRemoved = mockOnSendStreamRemoved;
     }
 
     // IConnection
@@ -59,6 +62,9 @@ public:
     { }
 
     void Stop() override
+    { }
+
+    void SendOutro(std::string message) override
     { }
 
     void SendStreamAvailable(std::shared_ptr<Stream> stream) override
@@ -69,12 +75,17 @@ public:
         }
     }
 
-    void SendStreamEnded(std::shared_ptr<Stream> stream) override
+    void SendStreamRemoved(std::shared_ptr<Stream> stream) override
     {
-        if (mockOnSendStreamEnded)
+        if (mockOnSendStreamRemoved)
         {
-            mockOnSendStreamEnded(stream);
+            mockOnSendStreamRemoved(stream);
         }
+    }
+
+    void SendStreamMetadata(std::shared_ptr<Stream> stream) override
+    {
+
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -82,23 +93,44 @@ public:
         this->onConnectionClosed = onConnectionClosed;
     }
 
-    void SetOnIngestNewStream(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onIngestNewStream) override
+    void SetOnIntro(std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro) override
     {
-        this->onIngestNewStream = onIngestNewStream;
+        
     }
 
-    void SetOnIngestStreamEnded(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onIngestStreamEnded) override
+    void SetOnOutro(std::function<void(std::string)> onOutro)
     {
-        this->onIngestStreamEnded = onIngestStreamEnded;
+
     }
 
-    void SetOnStreamViewersUpdated(
+    void SetOnSubscribeChannel(std::function<void(ftl_channel_id_t)> onSubscribeChannel) override
+    {
+
+    }
+
+    void SetOnUnsubscribeChannel(
+        std::function<void(ftl_channel_id_t)> onUnsubscribeChannel) override
+    {
+        
+    }
+
+    void SetOnStreamAvailable(
+        std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable) override
+    {
+        this->onStreamAvailable = onStreamAvailable;
+    }
+
+    void SetOnStreamRemoved(
+        std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved) override
+    {
+        this->onStreamRemoved = onStreamRemoved;
+    }
+
+    void SetOnStreamMetadata(
         std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)>
-        onStreamViewersUpdated) override
+        onStreamMetadata) override
     {
-        this->onStreamViewersUpdated = onStreamViewersUpdated;
+        this->onStreamMetadata = onStreamMetadata;
     }
 
     std::string GetHostname() override
@@ -108,12 +140,15 @@ public:
 
 private:
     std::function<void(void)> onConnectionClosed;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onIngestNewStream;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onIngestStreamEnded;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamViewersUpdated;
+    std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro;
+    std::function<void(ftl_channel_id_t)> onSubscribeChannel;
+    std::function<void(ftl_channel_id_t)> onUnsubscribeChannel;
+    std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable;
+    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved;
+    std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata;
     std::string hostname;
 
     // Mock callbacks
     std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamAvailable;
-    std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamEnded;
+    std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamRemoved;
 };

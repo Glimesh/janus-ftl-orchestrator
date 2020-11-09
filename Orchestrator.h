@@ -58,15 +58,15 @@ private:
     /* Private methods */
     void newConnection(std::shared_ptr<TConnection> connection);
     void connectionClosed(std::shared_ptr<TConnection> connection);
-    void ingestNewStream(
+    void streamAvailable(
         std::shared_ptr<TConnection> connection,
         ftl_channel_id_t channelId,
         ftl_stream_id_t streamId);
-    void ingestStreamEnded(
+    void streamRemoved(
         std::shared_ptr<TConnection> connection,
         ftl_channel_id_t channelId,
         ftl_stream_id_t streamId);
-    void streamViewersUpdated(
+    void streamMetadata(
         std::shared_ptr<TConnection> connection,
         ftl_channel_id_t channelId,
         ftl_stream_id_t streamId,
