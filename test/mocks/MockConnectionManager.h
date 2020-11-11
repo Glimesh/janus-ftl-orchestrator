@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "../../IConnectionManager.h"
-#include "../../IConnection.h"
+#include "../../src/IConnectionManager.h"
+#include "../../src/IConnection.h"
 
 #include <functional>
 #include <memory>

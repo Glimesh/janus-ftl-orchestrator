@@ -1,14 +1,14 @@
 project('janus-ftl-orchestrator', 'cpp')
 
 sources = files([
-    'Configuration.cpp',
-    'FtlConnection.cpp',
-    'main.cpp',
-    'Orchestrator.cpp',
-    'Stream.cpp',
-    'StreamStore.cpp',
-    'TlsConnectionManager.cpp',
-    'TlsConnectionTransport.cpp',
+    'src/Configuration.cpp',
+    'src/FtlConnection.cpp',
+    'src/main.cpp',
+    'src/Orchestrator.cpp',
+    'src/Stream.cpp',
+    'src/StreamStore.cpp',
+    'src/TlsConnectionManager.cpp',
+    'src/TlsConnectionTransport.cpp',
 ])
 
 deps = [
@@ -17,7 +17,7 @@ deps = [
     dependency('spdlog'),
 ]
 
-cppargs = ['-std=c++20', '-Wno-unknown-pragmas', '-DCPPHTTPLIB_OPENSSL_SUPPORT']
+cppargs = ['-std=c++20', '-Wno-unknown-pragmas']
 
 executable(
     'janus-ftl-orchestrator',
@@ -35,10 +35,10 @@ testsources = files([
     'test/unit/FtlConnectionUnitTests.cpp',
     'test/unit/OrchestratorUnitTests.cpp',
     # Project sources
-    'FtlConnection.cpp',
-    'Orchestrator.cpp',
-    'Stream.cpp',
-    'StreamStore.cpp'
+    'src/FtlConnection.cpp',
+    'src/Orchestrator.cpp',
+    'src/Stream.cpp',
+    'src/StreamStore.cpp'
 ])
 
 executable(

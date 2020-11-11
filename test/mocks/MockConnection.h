@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "../../IConnection.h"
+#include "../../src/IConnection.h"
 
 #include <functional>
 #include <string>
