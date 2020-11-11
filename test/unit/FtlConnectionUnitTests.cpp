@@ -8,7 +8,7 @@
 #include <catch2/catch.hpp>
 
 #include "../mocks/MockConnectionTransport.h"
-#include "../FtlConnection.h"
+#include "../../src/FtlConnection.h"
 
 TEST_CASE("Intro requests are recognized", "[connection]")
 {

@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "../../IConnectionTransport.h"
+#include "../../src/IConnectionTransport.h"
 
 #include <chrono>
 #include <condition_variable>

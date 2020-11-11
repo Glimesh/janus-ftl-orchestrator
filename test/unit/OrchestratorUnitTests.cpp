@@ -11,7 +11,7 @@
 #include "../mocks/MockConnectionManager.h"
 #include "../mocks/MockConnection.h"
 
-#include "../../Orchestrator.h"
+#include "../../src/Orchestrator.h"
 
 TEST_CASE("Orchestrator keeps track of new connections and closed connections", "[orchestrator]")
 {

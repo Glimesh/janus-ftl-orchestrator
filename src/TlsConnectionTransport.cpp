@@ -112,6 +112,8 @@ std::vector<uint8_t> TlsConnectionTransport::Read()
         spdlog::info("RECEIVED: {}", std::string(buffer, buffer + bytesRead));
         return std::vector<uint8_t>(buffer, buffer + bytesRead);
     }
+
+    return std::vector<uint8_t>();
 }
 
 void TlsConnectionTransport::Write(const std::vector<uint8_t>& bytes)
