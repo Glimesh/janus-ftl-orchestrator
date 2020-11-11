@@ -7,7 +7,8 @@
 
 #include "TlsConnectionManager.h"
 
-#include "TlsConnection.h"
+#include "FtlConnection.h"
+#include "TlsConnectionTransport.h"
 #include "Util.h"
 
 #include <openssl/ssl.h>
@@ -16,7 +17,8 @@
 #include <stdexcept>
 
 #pragma region Constructor/Destructor
-TlsConnectionManager::TlsConnectionManager(
+template <class T>
+TlsConnectionManager<T>::TlsConnectionManager(
     std::vector<uint8_t> preSharedKey,
     in_port_t listenPort
 ) :
@@ -26,7 +28,8 @@ TlsConnectionManager::TlsConnectionManager(
 #pragma endregion
 
 #pragma region IConnectionManager
-void TlsConnectionManager::Init()
+template <class T>
+void TlsConnectionManager<T>::Init()
 {
     // Initialize OpenSSL pieces
     SSL_load_error_strings();
@@ -34,7 +37,8 @@ void TlsConnectionManager::Init()
     OpenSSL_add_all_algorithms();
 }
 
-void TlsConnectionManager::Listen()
+template <class T>
+void TlsConnectionManager<T>::Listen()
 {
     sockaddr_in listenAddr
     {
@@ -99,8 +103,10 @@ void TlsConnectionManager::Listen()
 
         spdlog::info("Accepted new connection...");
 
-        std::shared_ptr<TlsConnection> connection = 
-            std::make_shared<TlsConnection>(clientHandle, acceptedAddr, preSharedKey);
+        std::shared_ptr<TlsConnectionTransport> transport = 
+            std::make_shared<TlsConnectionTransport>(clientHandle, acceptedAddr, preSharedKey);
+
+        std::shared_ptr<T> connection = std::make_shared<T>(transport);
 
         if (onNewConnection)
         {
@@ -115,10 +121,17 @@ void TlsConnectionManager::Listen()
     }
 }
 
-void TlsConnectionManager::SetOnNewConnection(
-    std::function<void(std::shared_ptr<IConnection>)> onNewConnection)
+template <class T>
+void TlsConnectionManager<T>::SetOnNewConnection(
+    std::function<void(std::shared_ptr<T>)> onNewConnection)
 {
     this->onNewConnection = onNewConnection;
 }
 
+#pragma endregion
+
+#pragma region Template instantiations
+// Yeah, this is weird, but necessary.
+// See https://stackoverflow.com/questions/495021/why-can-templates-only-be-implemented-in-the-header-file
+template class TlsConnectionManager<FtlConnection>;
 #pragma endregion

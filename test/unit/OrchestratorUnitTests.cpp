@@ -8,17 +8,15 @@
 #include <catch2/catch.hpp>
 #include <memory>
 
-#include "mocks/MockConnectionManager.h"
-#include "mocks/MockConnection.h"
+#include "../mocks/MockConnectionManager.h"
+#include "../mocks/MockConnection.h"
 
-#include "../Orchestrator.h"
+#include "../../Orchestrator.h"
 
 TEST_CASE("Orchestrator keeps track of new connections and closed connections", "[orchestrator]")
 {
-    std::shared_ptr<MockConnectionManager> mockConnectionManager =
-        std::make_shared<MockConnectionManager>();
-    std::unique_ptr<Orchestrator> orchestrator =
-        std::make_unique<Orchestrator>(mockConnectionManager);
+    auto mockConnectionManager = std::make_shared<MockConnectionManager<MockConnection>>();
+    auto orchestrator = std::make_unique<Orchestrator<MockConnection>>(mockConnectionManager);
     orchestrator->Init();
     
     // We should start off with zero connections
@@ -26,19 +24,19 @@ TEST_CASE("Orchestrator keeps track of new connections and closed connections", 
 
     // Let's pretend to register a few.
     std::shared_ptr<MockConnection> mockIngestOne = 
-        std::make_shared<MockConnection>("mock-ingest-one", FtlServerKind::Ingest);
+        std::make_shared<MockConnection>("mock-ingest-one");
     mockConnectionManager->MockFireNewConnection(mockIngestOne);
     REQUIRE(orchestrator->GetConnections().count(mockIngestOne) == 1);
     std::shared_ptr<MockConnection> mockEdgeOne = 
-        std::make_shared<MockConnection>("mock-edge-one", FtlServerKind::Edge);
+        std::make_shared<MockConnection>("mock-edge-one");
     mockConnectionManager->MockFireNewConnection(mockEdgeOne);
     REQUIRE(orchestrator->GetConnections().count(mockEdgeOne) == 1);
     std::shared_ptr<MockConnection> mockIngestTwo = 
-        std::make_shared<MockConnection>("mock-ingest-two", FtlServerKind::Ingest);
+        std::make_shared<MockConnection>("mock-ingest-two");
     mockConnectionManager->MockFireNewConnection(mockIngestTwo);
     REQUIRE(orchestrator->GetConnections().count(mockIngestTwo) == 1);
     std::shared_ptr<MockConnection> mockEdgeTwo = 
-        std::make_shared<MockConnection>("mock-edge-two", FtlServerKind::Edge);
+        std::make_shared<MockConnection>("mock-edge-two");
     mockConnectionManager->MockFireNewConnection(mockEdgeTwo);
     REQUIRE(orchestrator->GetConnections().count(mockEdgeTwo) == 1);
 
@@ -56,3 +54,5 @@ TEST_CASE("Orchestrator keeps track of new connections and closed connections", 
 
     REQUIRE(orchestrator->GetConnections().size() == 0);
 }
+
+// TODO: Test cases to cover orchestrator logic

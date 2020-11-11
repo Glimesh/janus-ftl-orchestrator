@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "IConnection.h"
+#include "IConnectionTransport.h"
 
 #include <functional>
 #include <memory>
@@ -15,6 +15,7 @@
 /**
  * @brief Describes a class that accepts new IConnections
  */
+template <class TConnection>
 class IConnectionManager
 {
 public:
@@ -40,5 +41,5 @@ public:
      * @param onNewConnection callback to fire
      */
     virtual void SetOnNewConnection(
-        std::function<void(std::shared_ptr<IConnection>)> onNewConnection) = 0;
+        std::function<void(std::shared_ptr<TConnection>)> onNewConnection) = 0;
 };

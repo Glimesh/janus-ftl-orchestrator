@@ -7,26 +7,31 @@
 
 #pragma once
 
+#include "FtlTypes.h"
+
+#include "IConnectionManager.h"
+#include "StreamStore.h"
+
 #include <arpa/inet.h>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 
 // Forward declarations
 class Configuration;
-class IConnection;
-class IConnectionManager;
 
 /**
  * @brief
  *  Orchestrator handles listening for and maintaining incoming
  *  orchestration connections
  */
+template <class TConnection>
 class Orchestrator
 {
 public:
     /* Constructor/Destructor */
-    Orchestrator(std::shared_ptr<IConnectionManager> connectionManager);
+    Orchestrator(std::shared_ptr<IConnectionManager<TConnection>> connectionManager);
 
     /* Public methods */
     /**
@@ -39,15 +44,32 @@ public:
      * 
      * @return const std::set<std::shared_ptr<IConnection>> set of connections
      */
-    const std::set<std::shared_ptr<IConnection>> GetConnections();
+    const std::set<std::shared_ptr<TConnection>> GetConnections();
 
 private:
     /* Private members */
-    const std::shared_ptr<IConnectionManager> connectionManager;
+    const std::shared_ptr<IConnectionManager<TConnection>> connectionManager;
+    std::unique_ptr<StreamStore> streamStore;
     std::mutex connectionsMutex;
-    std::set<std::shared_ptr<IConnection>> connections;
+    std::set<std::shared_ptr<TConnection>> connections;
+    std::mutex streamsMutex;
+    std::map<ftl_channel_id_t, std::shared_ptr<TConnection>> channelIngestConnections;
 
     /* Private methods */
-    void newConnection(std::shared_ptr<IConnection> connection);
-    void connectionClosed(std::shared_ptr<IConnection> connection);
+    void newConnection(std::shared_ptr<TConnection> connection);
+    void connectionClosed(std::shared_ptr<TConnection> connection);
+    void streamAvailable(
+        std::shared_ptr<TConnection> connection,
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId);
+    void streamRemoved(
+        std::shared_ptr<TConnection> connection,
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId);
+    void streamMetadata(
+        std::shared_ptr<TConnection> connection,
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId,
+        uint32_t viewerCount);
+    
 };

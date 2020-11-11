@@ -7,7 +7,10 @@
 
 #pragma once
 
-#include "IConnection.h"
+#include "IConnectionTransport.h"
+
+#include "OpenSslPtr.h"
+#include "FtlTypes.h"
 
 #include <arpa/inet.h>
 #include <atomic>
@@ -20,53 +23,43 @@
 
 /**
  * @brief
- *  OrchestrationConnection represents a connection to a single FTL instance
+ *  TlsConnectionTransport represents a connection to a single FTL instance
  *  over a TCP socket secured by TLS.
  */
-class TlsConnection : public IConnection
+class TlsConnectionTransport : public IConnectionTransport
 {
 public:
     /* Constructor/Destructor */
     /**
-     * @brief Construct a new Orchestration Connection object
-     * 
+     * @brief Construct a new TlsConnectionTransport object
      * @param clientSocketHandle the handle to the accepted socket connection for this client
      * @param preSharedKeyHexStr pre-shared key in hex format (00-FF) for TLS PSK encryption
      */
-    TlsConnection(
+    TlsConnectionTransport(
         int clientSocketHandle,
         sockaddr_in acceptAddress,
         std::vector<uint8_t> preSharedKey);
 
-    /* IOrchestrationConnection */
+    /* IConnectionTransport */
     void Start() override;
     void Stop() override;
+    std::vector<uint8_t> Read() override;
+    void Write(const std::vector<uint8_t>& bytes) override;
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
-    std::string GetHostname() override;
-    FtlServerKind GetServerKind() override;
 
 private:
     /* Private members */
     const int clientSocketHandle;
     sockaddr_in acceptAddress;
     const std::vector<uint8_t> preSharedKey;
-    std::string hostname;
-    FtlServerKind serverKind;
-    std::function<void(void)> onConnectionClosed;
-    std::thread connectionThread;
-    std::atomic<bool> isStopping = { 0 };
+    SslPtr ssl;
     SSL_psk_find_session_cb_func sslPskCallbackFunc;
+    std::function<void(void)> onConnectionClosed;
 
     /* Private static methods */
-    static unsigned int callbackServerPsk(SSL *ssl, const char *identity, unsigned char* psk, unsigned int maxPskLen);
     static int callbackFindSslPsk(SSL *ssl, const unsigned char *identity, size_t identity_len, SSL_SESSION **sess);
 
     /* Private methods */
-    /**
-     * @brief Contains the code that runs in the connection thread.
-     */
-    void startConnectionThread();
-
     /**
      * @brief Closes the socket and fires connection closed callback
      */

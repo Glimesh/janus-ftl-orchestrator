@@ -13,11 +13,12 @@
 #include <functional>
 #include <memory>
 
-class MockConnectionManager : public IConnectionManager
+template <class TConnection>
+class MockConnectionManager : public IConnectionManager<TConnection>
 {
 public:
     // Mock utilities
-    void MockFireNewConnection(std::shared_ptr<IConnection> connection)
+    void MockFireNewConnection(std::shared_ptr<TConnection> connection)
     {
         onNewConnection(connection);
     }
@@ -29,11 +30,11 @@ public:
     void Listen() override
     { }
 
-    void SetOnNewConnection(std::function<void(std::shared_ptr<IConnection>)> onNewConnection)
+    void SetOnNewConnection(std::function<void(std::shared_ptr<TConnection>)> onNewConnection)
     {
         this->onNewConnection = onNewConnection;
     }
 
 private:
-    std::function<void(std::shared_ptr<IConnection>)> onNewConnection;
+    std::function<void(std::shared_ptr<TConnection>)> onNewConnection;
 };
