@@ -14,6 +14,41 @@
 
 /**
  * @brief
+ *  ConnectionResult is a struct used to report information on the result of a request.
+ *  Listeners such as Orchestrator use this to indicate to the IConnection whether a callback
+ *  was successfully handled or not.
+ * 
+ */
+struct ConnectionResult
+{
+    bool IsSuccess;
+};
+
+/* Callback types */
+typedef 
+    std::function<ConnectionResult(uint8_t, uint8_t, uint8_t, std::string)>
+    connection_cb_intro_t;
+typedef
+    std::function<ConnectionResult(std::string)>
+    connection_cb_outro_t;
+typedef
+    std::function<ConnectionResult(ftl_channel_id_t)>
+    connection_cb_subscribe_t;
+typedef
+    std::function<ConnectionResult(ftl_channel_id_t)>
+    connection_cb_unsubscribe_t;
+typedef
+    std::function<ConnectionResult(ftl_channel_id_t, ftl_stream_id_t, std::string)>
+    connection_cb_streamavailable_t;
+typedef
+    std::function<ConnectionResult(ftl_channel_id_t, ftl_stream_id_t)>
+    connection_cb_streamremoved_t;
+typedef
+    std::function<ConnectionResult(ftl_channel_id_t, ftl_stream_id_t, uint32_t)>
+    connection_cb_streammetadata_t;
+
+/**
+ * @brief
  *  IConnection represents a high-level connection to an FTL instance over an IConnectionTransport.
  *  Incoming binary data from IConnectionTransport is translated to discrete methods and events
  *  by the IConnection implementation.
@@ -74,15 +109,14 @@ public:
      * 
      * @param onIntro callback to fire on intro
      */
-    virtual void SetOnIntro(
-        std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro) = 0;
+    virtual void SetOnIntro(connection_cb_intro_t onIntro) = 0;
 
     /**
      * @brief Sets the callback that will fire when this connection receives an outro request.
      * 
      * @param onIntro callback to fire on outro
      */
-    virtual void SetOnOutro(std::function<void(std::string)> onOutro) = 0;
+    virtual void SetOnOutro(connection_cb_outro_t onOutro) = 0;
 
     /**
      * @brief
@@ -91,8 +125,7 @@ public:
      * 
      * @param onSubscribeChannel callback to fire on new channel subscription request
      */
-    virtual void SetOnSubscribeChannel(
-        std::function<void(ftl_channel_id_t)> onSubscribeChannel) = 0;
+    virtual void SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel) = 0;
 
     /**
      * @brief
@@ -101,8 +134,7 @@ public:
      * 
      * @param onUnsubscribeChannel callback to fire on channel unsubscribe request
      */
-    virtual void SetOnUnsubscribeChannel(
-        std::function<void(ftl_channel_id_t)> onUnsubscribeChannel) = 0;
+    virtual void SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel) = 0;
 
     /**
      * @brief
@@ -111,8 +143,7 @@ public:
      * 
      * @param onStreamAvailable callback to fire on new stream ingested
      */
-    virtual void SetOnStreamAvailable(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable) = 0;
+    virtual void SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable) = 0;
 
     /**
      * @brief
@@ -121,8 +152,7 @@ public:
      * 
      * @param onStreamRemoved callback to fire on existing stream ended
      */
-    virtual void SetOnStreamRemoved(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved) = 0;
+    virtual void SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved) = 0;
 
     /**
      * @brief 
@@ -130,8 +160,7 @@ public:
      * 
      * @param onStreamViewersUpdated callback to fire when new metadata is sent
      */
-    virtual void SetOnStreamMetadata(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata) = 0;
+    virtual void SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata) = 0;
 
     /**
      * @brief Retrieve the hostname of the FTL server represented by this connection

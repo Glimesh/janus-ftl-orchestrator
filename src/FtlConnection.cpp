@@ -194,41 +194,37 @@ void FtlConnection::SetOnConnectionClosed(std::function<void(void)> onConnection
     this->onConnectionClosed = onConnectionClosed;
 }
 
-void FtlConnection::SetOnIntro(std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro)
+void FtlConnection::SetOnIntro(connection_cb_intro_t onIntro)
 {
     this->onIntro = onIntro;
 }
 
-void FtlConnection::SetOnOutro(std::function<void(std::string)> onOutro)
+void FtlConnection::SetOnOutro(connection_cb_outro_t onOutro)
 {
     this->onOutro = onOutro;
 }
 
-void FtlConnection::SetOnSubscribeChannel(std::function<void(ftl_channel_id_t)> onSubscribeChannel)
+void FtlConnection::SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel)
 {
     this->onSubscribeChannel = onSubscribeChannel;
 }
 
-void FtlConnection::SetOnUnsubscribeChannel(
-    std::function<void(ftl_channel_id_t)> onUnsubscribeChannel)
+void FtlConnection::SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel)
 {
     this->onUnsubscribeChannel = onUnsubscribeChannel;
 }
 
-void FtlConnection::SetOnStreamAvailable(
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable)
+void FtlConnection::SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable)
 {
     this->onStreamAvailable = onStreamAvailable;
 }
 
-void FtlConnection::SetOnStreamRemoved(
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved)
+void FtlConnection::SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved)
 {
     this->onStreamRemoved = onStreamRemoved;
 }
 
-void FtlConnection::SetOnStreamMetadata(
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata)
+void FtlConnection::SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata)
 {
     this->onStreamMetadata = onStreamMetadata;
 }
@@ -340,16 +336,20 @@ void FtlConnection::processIntroMessage(
     hostname = std::string(payload.begin() + 3, payload.end());
 
     // Indicate that we received an intro
+    ConnectionResult result
+    {
+        .IsSuccess = false
+    };
     if (onIntro)
     {
-        onIntro(versionMajor, versionMinor, revision, hostname);
+        result = onIntro(versionMajor, versionMinor, revision, hostname);
     }
 
     // Send a response
     OrchestrationMessageHeader responseHeader
     {
         .MessageDirection = OrchestrationMessageDirectionKind::Response,
-        .MessageFailure = false,
+        .MessageFailure = !result.IsSuccess,
         .MessageType = OrchestrationMessageType::Intro,
         .MessageId = header.MessageId,
         .MessagePayloadLength = 0,

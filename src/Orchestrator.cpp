@@ -8,8 +8,6 @@
 #include "Orchestrator.h"
 
 #include "FtlConnection.h"
-#include "IConnection.h"
-#include "IConnectionManager.h"
 #include "Configuration.h"
 #include "StreamStore.h"
 #include "Util.h"
@@ -53,69 +51,167 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
     // Set IConnection callbacks
     connection->SetOnConnectionClosed(
         std::bind(&Orchestrator::connectionClosed, this, connection));
-    connection->SetOnStreamAvailable(
+    connection->SetOnIntro(
         std::bind(
-            &Orchestrator::streamAvailable,
+            &Orchestrator::connectionIntro,
             this,
             connection,
-            std::placeholders::_1,
-            std::placeholders::_2));
+            std::placeholders::_1,   // versionMajor
+            std::placeholders::_2,   // versionMinor
+            std::placeholders::_3,   // versionRevision
+            std::placeholders::_4)); // hostname
+    connection->SetOnOutro(
+        std::bind(
+            &Orchestrator::connectionOutro,
+            this,
+            connection,
+            std::placeholders::_1)); // reason
+    connection->SetOnSubscribeChannel(
+        std::bind(
+            &Orchestrator::connectionSubscribeChannel,
+            this,
+            connection,
+            std::placeholders::_1)); // channelId
+    connection->SetOnUnsubscribeChannel(
+        std::bind(
+            &Orchestrator::connectionSubscribeChannel,
+            this,
+            connection,
+            std::placeholders::_1)); // channelId
+    connection->SetOnStreamAvailable(
+        std::bind(
+            &Orchestrator::connectionStreamAvailable,
+            this,
+            connection,
+            std::placeholders::_1,   // channelId
+            std::placeholders::_2,   // streamId
+            std::placeholders::_3)); // hostname
+    connection->SetOnStreamRemoved(
+        std::bind(
+            &Orchestrator::connectionStreamRemoved,
+            this,
+            connection,
+            std::placeholders::_1,   // channelId
+            std::placeholders::_2)); // streamId
+    connection->SetOnStreamMetadata(
+        std::bind(
+            &Orchestrator::connectionStreamMetadata,
+            this,
+            connection,
+            std::placeholders::_1,   // channelId
+            std::placeholders::_2,   // streamId
+            std::placeholders::_3)); // viewerCount
 
     std::lock_guard<std::mutex> lock(connectionsMutex);
     connections.insert(connection);
 }
 
+#pragma region Connection callback handlers
 template <class TConnection>
-void Orchestrator<TConnection>::connectionClosed(std::shared_ptr<TConnection> connection)
+void Orchestrator<TConnection>::connectionClosed(std::weak_ptr<TConnection> connection)
 {
-    spdlog::info("Connection closed to {}", connection->GetHostname());
-
-    std::lock_guard<std::mutex> lock(connectionsMutex);
-    connections.erase(connection);
-}
-
-template <class TConnection>
-void Orchestrator<TConnection>::streamAvailable(
-    std::shared_ptr<TConnection> connection,
-    ftl_channel_id_t channelId,
-    ftl_stream_id_t streamId)
-{
-    // Create new Stream object to track this stream, then add to stream store
-    std::shared_ptr<Stream> stream = std::make_shared<Stream>(connection, channelId, streamId);
-    streamStore->AddStream(stream);
-
-    // TODO: Notify other connections that a new stream is available
-}
-
-template <class TConnection>
-void Orchestrator<TConnection>::streamRemoved(
-    std::shared_ptr<TConnection> connection,
-    ftl_channel_id_t channelId,
-    ftl_stream_id_t streamId)
-{
-    // Remove the Stream from the stream store
-    if (!streamStore->RemoveStream(channelId, streamId))
+    if (auto strongConnection = connection.lock())
     {
-        spdlog::error(
-            "Couldn't find stream {}/{} indicated removed by {}",
-            channelId,
-            streamId,
-            connection->GetHostname());
-    }
+        spdlog::info("Connection closed to {}", strongConnection->GetHostname());
 
-    // TODO: Notify other connections that this stream has ended
+        std::lock_guard<std::mutex> lock(connectionsMutex);
+        connections.erase(strongConnection);
+    }
 }
 
 template <class TConnection>
-void Orchestrator<TConnection>::streamMetadata(
-    std::shared_ptr<TConnection> connection,
+ConnectionResult Orchestrator<TConnection>::connectionIntro(
+    std::weak_ptr<TConnection> connection,
+    uint8_t versionMajor,
+    uint8_t versionMinor,
+    uint8_t versionRevision,
+    std::string hostname)
+{
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
+}
+
+template <class TConnection>
+ConnectionResult Orchestrator<TConnection>::connectionOutro(
+    std::weak_ptr<TConnection> connection,
+    std::string reason)
+{
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
+}
+
+template <class TConnection>
+ConnectionResult Orchestrator<TConnection>::connectionSubscribeChannel(
+    std::weak_ptr<TConnection> connection,
+    ftl_channel_id_t channelId)
+{
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
+}
+
+template <class TConnection>
+ConnectionResult Orchestrator<TConnection>::connectionUnsubscribeChannel(
+    std::weak_ptr<TConnection> connection,
+    ftl_channel_id_t channelId)
+{
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
+}
+
+template <class TConnection>
+ConnectionResult Orchestrator<TConnection>::connectionStreamAvailable(
+    std::weak_ptr<TConnection> connection,
+    ftl_channel_id_t channelId,
+    ftl_stream_id_t streamId,
+    std::string hostname)
+{
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
+}
+
+template <class TConnection>
+ConnectionResult Orchestrator<TConnection>::connectionStreamRemoved(
+    std::weak_ptr<TConnection> connection,
+    ftl_channel_id_t channelId,
+    ftl_stream_id_t streamId)
+{
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
+}
+
+template <class TConnection>
+ConnectionResult Orchestrator<TConnection>::connectionStreamMetadata(
+    std::weak_ptr<TConnection> connection,
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId,
     uint32_t viewerCount)
 {
-    
+    // TODO
+    return ConnectionResult
+    {
+        .IsSuccess = true
+    };
 }
-#pragma endregion
+#pragma endregion /Connection callback handlers
+#pragma endregion /Private methods
 
 #pragma region Template instantiations
 // Yeah, this is weird, but necessary.

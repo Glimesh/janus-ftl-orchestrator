@@ -81,18 +81,13 @@ public:
     void SendStreamRemoved(std::shared_ptr<Stream> stream) override;
     void SendStreamMetadata(std::shared_ptr<Stream> stream) override;
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
-    void SetOnIntro(
-        std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro) override;
-    void SetOnOutro(std::function<void(std::string)> onOutro) override;
-    void SetOnSubscribeChannel(std::function<void(ftl_channel_id_t)> onSubscribeChannel) override;
-    void SetOnUnsubscribeChannel(
-        std::function<void(ftl_channel_id_t)> onUnsubscribeChannel) override;
-    void SetOnStreamAvailable(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable) override;
-    void SetOnStreamRemoved(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved) override;
-    void SetOnStreamMetadata(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata) override;
+    void SetOnIntro(connection_cb_intro_t onIntro) override;
+    void SetOnOutro(connection_cb_outro_t onOutro) override;
+    void SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel) override;
+    void SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel) override;
+    void SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable) override;
+    void SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved) override;
+    void SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata) override;
     std::string GetHostname() override;
 
 private:
@@ -100,13 +95,13 @@ private:
     std::atomic<bool> isStopping { 0 };
     std::thread connectionThread;
     std::function<void(void)> onConnectionClosed;
-    std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro;
-    std::function<void(std::string)> onOutro;
-    std::function<void(ftl_channel_id_t)> onSubscribeChannel;
-    std::function<void(ftl_channel_id_t)> onUnsubscribeChannel;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata;
+    connection_cb_intro_t onIntro;
+    connection_cb_outro_t onOutro;
+    connection_cb_subscribe_t onSubscribeChannel;
+    connection_cb_unsubscribe_t onUnsubscribeChannel;
+    connection_cb_streamavailable_t onStreamAvailable;
+    connection_cb_streamremoved_t onStreamRemoved;
+    connection_cb_streammetadata_t onStreamMetadata;
     std::string hostname;
 
     /* Private methods */

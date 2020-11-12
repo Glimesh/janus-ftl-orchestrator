@@ -37,6 +37,11 @@ TEST_CASE("Intro requests are recognized", "[connection]")
             recvMinor = minor;
             recvRevision = revision;
             recvHost = host;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Write an intro connection message
@@ -99,6 +104,11 @@ TEST_CASE("Outro requests are recognized", "[connection]")
         [&recvReason](std::string reason)
         {
             recvReason = reason;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Construct the message
@@ -149,6 +159,11 @@ TEST_CASE("Subscribe channel requests are recognized", "[connection]")
         [&recvChannelId](uint32_t channelId)
         {
             recvChannelId = channelId;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Construct the message
@@ -200,6 +215,11 @@ TEST_CASE("Unsubscribe channel requests are recognized", "[connection]")
         [&recvChannelId](uint32_t channelId)
         {
             recvChannelId = channelId;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Construct the message
@@ -258,6 +278,11 @@ TEST_CASE("Stream available requests are recognized", "[connection]")
             recvChannelId = channelId;
             recvStreamId = streamId;
             recvHost = host;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Construct the message
@@ -318,6 +343,11 @@ TEST_CASE("Stream removed requests are recognized", "[connection]")
         {
             recvChannelId = channelId;
             recvStreamId = streamId;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Construct the message
@@ -379,6 +409,11 @@ TEST_CASE("Stream metadata requests are recognized", "[connection]")
             recvChannelId = channelId;
             recvStreamId = streamId;
             recvViewers = viewers;
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
         });
 
     // Construct the message
