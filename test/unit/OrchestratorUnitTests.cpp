@@ -53,6 +53,8 @@ TEST_CASE("Orchestrator keeps track of new connections and closed connections", 
     REQUIRE(orchestrator->GetConnections().count(mockEdgeTwo) == 0);
 
     REQUIRE(orchestrator->GetConnections().size() == 0);
+
+    // TODO: May want to make sure the connections are properly destructed as well.
 }
 
 // TODO: Test cases to cover orchestrator logic
