@@ -174,17 +174,17 @@ void FtlConnection::SendOutro(std::string message)
     // TODO
 }
 
-void FtlConnection::SendStreamAvailable(std::shared_ptr<Stream> stream)
+void FtlConnection::SendStreamAvailable(const Stream& stream)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamRemoved(std::shared_ptr<Stream> stream)
+void FtlConnection::SendStreamRemoved(const Stream& stream)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamMetadata(std::shared_ptr<Stream> stream)
+void FtlConnection::SendStreamMetadata(const Stream& stream)
 {
     // TODO
 }

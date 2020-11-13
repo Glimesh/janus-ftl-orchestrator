@@ -80,21 +80,21 @@ public:
      * 
      * @param stream the stream that has been made available
      */
-    virtual void SendStreamAvailable(std::shared_ptr<Stream> stream) = 0;
+    virtual void SendStreamAvailable(const Stream& stream) = 0;
 
     /**
      * @brief Sends a message to this connection indicating that a stream has ended
      * 
      * @param stream the stream that has ended
      */
-    virtual void SendStreamRemoved(std::shared_ptr<Stream> stream) = 0;
+    virtual void SendStreamRemoved(const Stream& stream) = 0;
 
     /**
      * @brief Sends a stream metadata update to this connection
      * 
      * @param stream stream to send metadata for
      */
-    virtual void SendStreamMetadata(std::shared_ptr<Stream> stream) = 0;
+    virtual void SendStreamMetadata(const Stream& stream) = 0;
 
     /**
      * @brief

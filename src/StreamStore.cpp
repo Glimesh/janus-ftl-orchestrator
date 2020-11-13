@@ -14,10 +14,10 @@
 #include <stdexcept>
 
 #pragma region Public methods
-void StreamStore::AddStream(std::shared_ptr<Stream> stream)
+void StreamStore::AddStream(Stream stream)
 {
     std::lock_guard<std::mutex> lock(streamStoreMutex);
-    ftl_channel_id_t channelId = stream->GetChannelId();
+    ftl_channel_id_t channelId = stream.ChannelId;
     if (streamByChannelId.count(channelId) > 0)
     {
         std::stringstream errStr;
@@ -28,24 +28,25 @@ void StreamStore::AddStream(std::shared_ptr<Stream> stream)
     streamByChannelId[channelId] = stream;
 }
 
-bool StreamStore::RemoveStream(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+std::optional<Stream> StreamStore::RemoveStream(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
 {
     std::lock_guard<std::mutex> lock(streamStoreMutex);
     if (streamByChannelId.count(channelId) > 0)
     {
+        Stream returnStream = streamByChannelId[channelId];
         streamByChannelId.erase(channelId);
-        return true;
+        return returnStream;
     }
-    return false;
+    return std::nullopt;
 }
 
-std::shared_ptr<Stream> StreamStore::GetStreamByChannelId(ftl_channel_id_t channelId)
+std::optional<Stream> StreamStore::GetStreamByChannelId(ftl_channel_id_t channelId)
 {
     std::lock_guard<std::mutex> lock(streamStoreMutex);
     if (streamByChannelId.count(channelId) > 0)
     {
         return streamByChannelId[channelId];
     }
-    return nullptr;
+    return std::nullopt;
 }
 #pragma endregion

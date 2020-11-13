@@ -27,9 +27,6 @@ Orchestrator<TConnection>::Orchestrator(
 template <class TConnection>
 void Orchestrator<TConnection>::Init()
 {
-    // Initialize StreamStore
-    streamStore = std::make_unique<StreamStore>();
-
     // Set IConnectionManager callbacks
     connectionManager->SetOnNewConnection(
         std::bind(&Orchestrator::newConnection, this, std::placeholders::_1));
@@ -46,8 +43,6 @@ const std::set<std::shared_ptr<TConnection>> Orchestrator<TConnection>::GetConne
 template <class TConnection>
 void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> connection)
 {
-    spdlog::info("New connection");
-
     // Set IConnection callbacks
     connection->SetOnConnectionClosed(
         std::bind(&Orchestrator::connectionClosed, this, connection));
@@ -102,8 +97,10 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
             std::placeholders::_2,   // streamId
             std::placeholders::_3)); // viewerCount
 
+    // Track the connection until we receive the opening intro message
     std::lock_guard<std::mutex> lock(connectionsMutex);
-    connections.insert(connection);
+    spdlog::info("New connection, awaiting intro...");
+    pendingConnections.insert(connection);
 }
 
 #pragma region Connection callback handlers
@@ -113,8 +110,8 @@ void Orchestrator<TConnection>::connectionClosed(std::weak_ptr<TConnection> conn
     if (auto strongConnection = connection.lock())
     {
         spdlog::info("Connection closed to {}", strongConnection->GetHostname());
-
         std::lock_guard<std::mutex> lock(connectionsMutex);
+        pendingConnections.erase(strongConnection);
         connections.erase(strongConnection);
     }
 }
@@ -127,11 +124,19 @@ ConnectionResult Orchestrator<TConnection>::connectionIntro(
     uint8_t versionRevision,
     std::string hostname)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info("FROM {}: Intro", strongConnection->GetHostname());
+        // Move this connection from pending to active
+        std::lock_guard<std::mutex> lock(connectionsMutex);
+        pendingConnections.erase(strongConnection);
+        connections.insert(strongConnection);
+        return ConnectionResult
+        {
+            .IsSuccess = true
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 
 template <class TConnection>
@@ -139,11 +144,15 @@ ConnectionResult Orchestrator<TConnection>::connectionOutro(
     std::weak_ptr<TConnection> connection,
     std::string reason)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info("FROM {}: Outro '{}'", strongConnection->GetHostname(), reason);
+        return ConnectionResult
+        {
+            .IsSuccess = true
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 
 template <class TConnection>
@@ -151,11 +160,33 @@ ConnectionResult Orchestrator<TConnection>::connectionSubscribeChannel(
     std::weak_ptr<TConnection> connection,
     ftl_channel_id_t channelId)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info(
+            "FROM {}: Subscribe to channel {}",
+            strongConnection->GetHostname(),
+            channelId);
+
+        // Add the subscription
+        bool addResult = subscriptions.AddSubscription(strongConnection, channelId);
+
+        // Check if this stream is already active
+        if (auto stream = streamStore.GetStreamByChannelId(channelId))
+        {
+            spdlog::info(
+                "TO {}: Stream available, channel {} / stream {} @ ingest {}",
+                stream.value().ChannelId,
+                stream.value().StreamId,
+                stream.value().IngestConnection->GetHostname());
+            strongConnection->SendStreamAvailable(stream.value());
+        }
+
+        return ConnectionResult
+        {
+            .IsSuccess = addResult
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 
 template <class TConnection>
@@ -163,11 +194,22 @@ ConnectionResult Orchestrator<TConnection>::connectionUnsubscribeChannel(
     std::weak_ptr<TConnection> connection,
     ftl_channel_id_t channelId)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info(
+            "FROM {}: Unsubscribe from channel {}",
+            strongConnection->GetHostname(),
+            channelId);
+
+        // Remove the subscription
+        bool removeResult = subscriptions.RemoveSubscription(strongConnection, channelId);
+
+        return ConnectionResult
+        {
+            .IsSuccess = removeResult
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 
 template <class TConnection>
@@ -177,11 +219,39 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamAvailable(
     ftl_stream_id_t streamId,
     std::string hostname)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info(
+            "FROM {}: Stream available, channel {} / stream {} @ ingest {}",
+            strongConnection->GetHostname(),
+            channelId,
+            streamId,
+            hostname);
+
+        // Add it to the stream store
+        // TODO: Handle existing streams
+        Stream newStream
+        {
+            .IngestConnection = strongConnection,
+            .ChannelId = channelId,
+            .StreamId = streamId
+        };
+        streamStore.AddStream(newStream);
+
+        // See if anyone is subscribed to this channel, and let them know
+        std::set<std::shared_ptr<IConnection>> subscribedConnections = 
+            subscriptions.GetSubscribedConnections(channelId);
+        for (const auto& subscribedConnection : subscribedConnections)
+        {
+            subscribedConnection->SendStreamAvailable(newStream);
+        }
+
+        return ConnectionResult
+        {
+            .IsSuccess = true
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 
 template <class TConnection>
@@ -190,11 +260,43 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamRemoved(
     ftl_channel_id_t channelId,
     ftl_stream_id_t streamId)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info(
+            "FROM {}: Stream removed, channel {} / stream {}",
+            strongConnection->GetHostname(),
+            channelId,
+            streamId);
+
+        // Attempt to remove it if it exists
+        if (auto removedStream = streamStore.RemoveStream(channelId, streamId))
+        {
+            // Alert any subscribers that this stream has been removed
+            std::set<std::shared_ptr<IConnection>> subscribedConnections = 
+                subscriptions.GetSubscribedConnections(channelId);
+            for (const auto& subscribedConnection : subscribedConnections)
+            {
+                subscribedConnection->SendStreamRemoved(removedStream.value());
+            }
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
+        }
+
+        spdlog::error(
+            "{} indicated that stream channel {} / stream {} was removed, "
+            "but this stream could not be found.",
+            strongConnection->GetHostname(),
+            channelId,
+            streamId);
+        return ConnectionResult
+        {
+            .IsSuccess = false
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 
 template <class TConnection>
@@ -204,11 +306,38 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamMetadata(
     ftl_stream_id_t streamId,
     uint32_t viewerCount)
 {
-    // TODO
-    return ConnectionResult
+    if (auto strongConnection = connection.lock())
     {
-        .IsSuccess = true
-    };
+        spdlog::info(
+            "FROM {}: {} viewers for channel {} / stream {}",
+            strongConnection->GetHostname(),
+            viewerCount,
+            channelId,
+            streamId);
+
+        // TODO: We ought to filter based on stream ID as well.
+        if (auto stream = streamStore.GetStreamByChannelId(channelId))
+        {
+            stream.value().IngestConnection->SendStreamMetadata(stream.value());
+
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
+        }
+
+        spdlog::error(
+            "{} provided metadata for stream channel {} / stream {}, "
+            "but this stream could not be found.",
+            strongConnection->GetHostname(),
+            channelId,
+            streamId);
+        return ConnectionResult
+        {
+            .IsSuccess = false
+        };
+    }
+    throw std::runtime_error("Lost reference to active connection!");
 }
 #pragma endregion /Connection callback handlers
 #pragma endregion /Private methods

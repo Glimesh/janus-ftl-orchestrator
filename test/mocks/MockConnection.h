@@ -46,13 +46,13 @@ public:
     }
 
     void SetMockOnSendStreamAvailable(
-        std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamAvailable)
+        std::function<void(Stream)> mockOnSendStreamAvailable)
     {
         this->mockOnSendStreamAvailable = mockOnSendStreamAvailable;
     }
 
     void SetMockOnSendStreamRemoved(
-        std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamRemoved)
+        std::function<void(Stream)> mockOnSendStreamRemoved)
     {
         this->mockOnSendStreamRemoved = mockOnSendStreamRemoved;
     }
@@ -69,7 +69,7 @@ public:
         // TODO
     }
 
-    void SendStreamAvailable(std::shared_ptr<Stream> stream) override
+    void SendStreamAvailable(const Stream& stream) override
     {
         if (mockOnSendStreamAvailable)
         {
@@ -77,7 +77,7 @@ public:
         }
     }
 
-    void SendStreamRemoved(std::shared_ptr<Stream> stream) override
+    void SendStreamRemoved(const Stream& stream) override
     {
         if (mockOnSendStreamRemoved)
         {
@@ -85,7 +85,7 @@ public:
         }
     }
 
-    void SendStreamMetadata(std::shared_ptr<Stream> stream) override
+    void SendStreamMetadata(const Stream& stream) override
     {
         // TODO
     }
@@ -147,6 +147,6 @@ private:
     std::string hostname;
 
     // Mock callbacks
-    std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamAvailable;
-    std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamRemoved;
+    std::function<void(Stream)> mockOnSendStreamAvailable;
+    std::function<void(Stream)> mockOnSendStreamRemoved;
 };

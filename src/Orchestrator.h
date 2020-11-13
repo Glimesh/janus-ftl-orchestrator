@@ -12,6 +12,7 @@
 #include "IConnection.h"
 #include "IConnectionManager.h"
 #include "StreamStore.h"
+#include "SubscriptionStore.h"
 
 #include <arpa/inet.h>
 #include <map>
@@ -50,11 +51,12 @@ public:
 private:
     /* Private members */
     const std::shared_ptr<IConnectionManager<TConnection>> connectionManager;
-    std::unique_ptr<StreamStore> streamStore;
+    StreamStore streamStore;
     std::mutex connectionsMutex;
+    std::set<std::shared_ptr<TConnection>> pendingConnections;
     std::set<std::shared_ptr<TConnection>> connections;
     std::mutex streamsMutex;
-    std::map<ftl_channel_id_t, std::shared_ptr<TConnection>> channelSubscriptions;
+    SubscriptionStore subscriptions;
 
     /* Private methods */
     /* ConnectionManager callback handlers */

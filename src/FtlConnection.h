@@ -77,9 +77,9 @@ public:
     void Start() override;
     void Stop() override;
     void SendOutro(std::string message) override;
-    void SendStreamAvailable(std::shared_ptr<Stream> stream) override;
-    void SendStreamRemoved(std::shared_ptr<Stream> stream) override;
-    void SendStreamMetadata(std::shared_ptr<Stream> stream) override;
+    void SendStreamAvailable(const Stream& stream) override;
+    void SendStreamRemoved(const Stream& stream) override;
+    void SendStreamMetadata(const Stream& stream) override;
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
     void SetOnIntro(connection_cb_intro_t onIntro) override;
     void SetOnOutro(connection_cb_outro_t onOutro) override;
