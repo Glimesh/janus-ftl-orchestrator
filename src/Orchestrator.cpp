@@ -126,7 +126,12 @@ ConnectionResult Orchestrator<TConnection>::connectionIntro(
 {
     if (auto strongConnection = connection.lock())
     {
-        spdlog::info("FROM {}: Intro", strongConnection->GetHostname());
+        spdlog::info("FROM {}: Intro v{}.{}.{} @ {}",
+            strongConnection->GetHostname(),
+            versionMajor,
+            versionMinor,
+            versionRevision,
+            hostname);
         // Move this connection from pending to active
         std::lock_guard<std::mutex> lock(connectionsMutex);
         pendingConnections.erase(strongConnection);

@@ -26,6 +26,18 @@ public:
         onConnectionClosed();
     }
 
+    void MockFireOnIntro(
+        uint8_t versionMajor,
+        uint8_t versionMinor,
+        uint8_t versionRevision,
+        std::string host)
+    {
+        if (onIntro)
+        {
+            onIntro(versionMajor, versionMinor, versionRevision, host);
+        }
+    }
+
     void MockFireOnStreamAvailable(
         ftl_channel_id_t channelId,
         ftl_stream_id_t streamId,

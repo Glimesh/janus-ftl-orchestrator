@@ -13,7 +13,7 @@
 
 #include "../../src/Orchestrator.h"
 
-TEST_CASE("Orchestrator keeps track of new connections and closed connections", "[orchestrator]")
+TEST_CASE("Orchestrator basic connect/disconnect", "[orchestrator]")
 {
     auto mockConnectionManager = std::make_shared<MockConnectionManager<MockConnection>>();
     auto orchestrator = std::make_unique<Orchestrator<MockConnection>>(mockConnectionManager);
@@ -22,39 +22,25 @@ TEST_CASE("Orchestrator keeps track of new connections and closed connections", 
     // We should start off with zero connections
     REQUIRE(orchestrator->GetConnections().size() == 0);
 
-    // Let's pretend to register a few.
-    std::shared_ptr<MockConnection> mockIngestOne = 
-        std::make_shared<MockConnection>("mock-ingest-one");
-    mockConnectionManager->MockFireNewConnection(mockIngestOne);
-    REQUIRE(orchestrator->GetConnections().count(mockIngestOne) == 1);
-    std::shared_ptr<MockConnection> mockEdgeOne = 
-        std::make_shared<MockConnection>("mock-edge-one");
-    mockConnectionManager->MockFireNewConnection(mockEdgeOne);
-    REQUIRE(orchestrator->GetConnections().count(mockEdgeOne) == 1);
-    std::shared_ptr<MockConnection> mockIngestTwo = 
-        std::make_shared<MockConnection>("mock-ingest-two");
-    mockConnectionManager->MockFireNewConnection(mockIngestTwo);
-    REQUIRE(orchestrator->GetConnections().count(mockIngestTwo) == 1);
-    std::shared_ptr<MockConnection> mockEdgeTwo = 
-        std::make_shared<MockConnection>("mock-edge-two");
-    mockConnectionManager->MockFireNewConnection(mockEdgeTwo);
-    REQUIRE(orchestrator->GetConnections().count(mockEdgeTwo) == 1);
+    // Let's register one
+    std::shared_ptr<MockConnection> mockConnection = std::make_shared<MockConnection>("mock");
+    mockConnectionManager->MockFireNewConnection(mockConnection);
 
-    REQUIRE(orchestrator->GetConnections().size() == 4);
+    // At this point, we haven't sent an intro message, so we shouldn't be counted
+    REQUIRE(orchestrator->GetConnections().count(mockConnection) == 0);
 
-    // Close mock connections and make sure orchestrator responds correctly.
-    mockIngestOne->MockFireOnConnectionClosed();
-    REQUIRE(orchestrator->GetConnections().count(mockIngestOne) == 0);
-    mockEdgeOne->MockFireOnConnectionClosed();
-    REQUIRE(orchestrator->GetConnections().count(mockEdgeOne) == 0);
-    mockIngestTwo->MockFireOnConnectionClosed();
-    REQUIRE(orchestrator->GetConnections().count(mockIngestTwo) == 0);
-    mockEdgeTwo->MockFireOnConnectionClosed();
-    REQUIRE(orchestrator->GetConnections().count(mockEdgeTwo) == 0);
+    // Fire mock intro message
+    mockConnection->MockFireOnIntro(0, 0, 0, "mock");
 
+    // Check that our mock connection is now counted
+    REQUIRE(orchestrator->GetConnections().count(mockConnection) == 1);
+
+    // TODO: Outro
+
+    // Close the connection and make sure it's removed
+    mockConnection->MockFireOnConnectionClosed();
+    REQUIRE(orchestrator->GetConnections().count(mockConnection) == 0);
     REQUIRE(orchestrator->GetConnections().size() == 0);
-
-    // TODO: May want to make sure the connections are properly destructed as well.
 }
 
 // TODO: Test cases to cover orchestrator logic
