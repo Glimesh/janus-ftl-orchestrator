@@ -47,6 +47,14 @@ public:
         }
     }
 
+    void MockFireOnSubscribeChannel(ftl_channel_id_t channelId)
+    {
+        if (onSubscribeChannel)
+        {
+            onSubscribeChannel(channelId);
+        }
+    }
+
     void MockFireOnStreamAvailable(
         ftl_channel_id_t channelId,
         ftl_stream_id_t streamId,

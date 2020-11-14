@@ -16,6 +16,7 @@
 TEST_CASE("Orchestrator basic connect/disconnect", "[orchestrator]")
 {
     auto mockConnectionManager = std::make_shared<MockConnectionManager<MockConnection>>();
+    mockConnectionManager->Init();
     auto orchestrator = std::make_unique<Orchestrator<MockConnection>>(mockConnectionManager);
     orchestrator->Init();
     
@@ -51,6 +52,41 @@ TEST_CASE("Orchestrator basic connect/disconnect", "[orchestrator]")
     // Remove our reference and ensure that the connection is destructed
     mockConnection = nullptr;
     REQUIRE(mockConnectionDestructed == true);
+}
+
+TEST_CASE("Orchestrator sends stream notifications immediately on subscribe", "[orchestrator]")
+{
+    auto mockConnectionManager = std::make_shared<MockConnectionManager<MockConnection>>();
+    mockConnectionManager->Init();
+    auto orchestrator = std::make_unique<Orchestrator<MockConnection>>(mockConnectionManager);
+    orchestrator->Init();
+
+    ftl_channel_id_t channelId = 1234;
+    ftl_stream_id_t streamId = 5678;
+
+    // Connect the ingest, and have it indicate that the stream is available.
+    auto mockIngest = std::make_shared<MockConnection>("ingest");
+    mockConnectionManager->MockFireNewConnection(mockIngest);
+    mockIngest->MockFireOnIntro(0, 0, 0, "ingest");
+    mockIngest->MockFireOnStreamAvailable(channelId, streamId, "ingest");
+
+    // Connect the edge, subscribe to the stream
+    auto mockEdge = std::make_shared<MockConnection>("edge");
+    bool edgeReceivedStream = false;
+    mockEdge->SetMockOnSendStreamAvailable(
+        [&edgeReceivedStream, &channelId, &streamId](Stream stream)
+        {
+            if ((stream.ChannelId == channelId) && (stream.StreamId == streamId))
+            {
+                edgeReceivedStream = true;
+            }
+        });
+    mockConnectionManager->MockFireNewConnection(mockEdge);
+    mockEdge->MockFireOnIntro(0, 0, 0, "edge");
+    mockEdge->MockFireOnSubscribeChannel(channelId);
+
+    // Did we get the stream available notification?
+    REQUIRE(edgeReceivedStream == true);
 }
 
 // TODO: Test cases to cover orchestrator logic

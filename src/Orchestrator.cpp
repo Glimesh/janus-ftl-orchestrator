@@ -44,6 +44,9 @@ template <class TConnection>
 void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> connection)
 {
     // Set IConnection callbacks
+    // We use weak references to the connection to avoid circular references since these get captured
+    // as part of the callback that's stored on the connection. Otherwise, the ref count would never
+    // hit 0, and the connection would never be destructed.
     std::weak_ptr<TConnection> weakConnection(connection);
     connection->SetOnConnectionClosed(
         std::bind(&Orchestrator::connectionClosed, this, weakConnection));
@@ -181,6 +184,7 @@ ConnectionResult Orchestrator<TConnection>::connectionSubscribeChannel(
         {
             spdlog::info(
                 "TO {}: Stream available, channel {} / stream {} @ ingest {}",
+                strongConnection->GetHostname(),
                 stream.value().ChannelId,
                 stream.value().StreamId,
                 stream.value().IngestConnection->GetHostname());

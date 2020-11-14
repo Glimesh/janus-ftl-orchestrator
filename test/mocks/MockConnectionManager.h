@@ -20,7 +20,10 @@ public:
     // Mock utilities
     void MockFireNewConnection(std::shared_ptr<TConnection> connection)
     {
-        onNewConnection(connection);
+        if (onNewConnection)
+        {
+            onNewConnection(connection);
+        }
     }
 
     // IConnectionManager
