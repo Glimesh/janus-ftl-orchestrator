@@ -44,13 +44,14 @@ template <class TConnection>
 void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> connection)
 {
     // Set IConnection callbacks
+    std::weak_ptr<TConnection> weakConnection(connection);
     connection->SetOnConnectionClosed(
-        std::bind(&Orchestrator::connectionClosed, this, connection));
+        std::bind(&Orchestrator::connectionClosed, this, weakConnection));
     connection->SetOnIntro(
         std::bind(
             &Orchestrator::connectionIntro,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1,   // versionMajor
             std::placeholders::_2,   // versionMinor
             std::placeholders::_3,   // versionRevision
@@ -59,25 +60,25 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
         std::bind(
             &Orchestrator::connectionOutro,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1)); // reason
     connection->SetOnSubscribeChannel(
         std::bind(
             &Orchestrator::connectionSubscribeChannel,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1)); // channelId
     connection->SetOnUnsubscribeChannel(
         std::bind(
             &Orchestrator::connectionSubscribeChannel,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1)); // channelId
     connection->SetOnStreamAvailable(
         std::bind(
             &Orchestrator::connectionStreamAvailable,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1,   // channelId
             std::placeholders::_2,   // streamId
             std::placeholders::_3)); // hostname
@@ -85,14 +86,14 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
         std::bind(
             &Orchestrator::connectionStreamRemoved,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1,   // channelId
             std::placeholders::_2)); // streamId
     connection->SetOnStreamMetadata(
         std::bind(
             &Orchestrator::connectionStreamMetadata,
             this,
-            connection,
+            weakConnection,
             std::placeholders::_1,   // channelId
             std::placeholders::_2,   // streamId
             std::placeholders::_3)); // viewerCount

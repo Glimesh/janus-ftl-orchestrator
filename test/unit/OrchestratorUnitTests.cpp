@@ -23,7 +23,13 @@ TEST_CASE("Orchestrator basic connect/disconnect", "[orchestrator]")
     REQUIRE(orchestrator->GetConnections().size() == 0);
 
     // Let's register one
+    bool mockConnectionDestructed = false;
     std::shared_ptr<MockConnection> mockConnection = std::make_shared<MockConnection>("mock");
+    mockConnection->SetMockOnDestructed(
+        [&mockConnectionDestructed]()
+        {
+            mockConnectionDestructed = true;
+        });
     mockConnectionManager->MockFireNewConnection(mockConnection);
 
     // At this point, we haven't sent an intro message, so we shouldn't be counted
@@ -41,6 +47,10 @@ TEST_CASE("Orchestrator basic connect/disconnect", "[orchestrator]")
     mockConnection->MockFireOnConnectionClosed();
     REQUIRE(orchestrator->GetConnections().count(mockConnection) == 0);
     REQUIRE(orchestrator->GetConnections().size() == 0);
+
+    // Remove our reference and ensure that the connection is destructed
+    mockConnection = nullptr;
+    REQUIRE(mockConnectionDestructed == true);
 }
 
 // TODO: Test cases to cover orchestrator logic

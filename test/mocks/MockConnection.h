@@ -20,6 +20,15 @@ public:
         hostname(hostname)
     { }
 
+    // Mock destructor
+    ~MockConnection() override
+    {
+        if (onDestructed)
+        {
+            onDestructed();
+        }
+    }
+
     // Mock utilities
     void MockFireOnConnectionClosed()
     {
@@ -55,6 +64,11 @@ public:
         {
             onStreamRemoved(channelId, streamId);
         }
+    }
+
+    void SetMockOnDestructed(std::function<void(void)> onDestructed)
+    {
+        this->onDestructed = onDestructed;
     }
 
     void SetMockOnSendStreamAvailable(
@@ -159,6 +173,7 @@ private:
     std::string hostname;
 
     // Mock callbacks
+    std::function<void(void)> onDestructed;
     std::function<void(Stream)> mockOnSendStreamAvailable;
     std::function<void(Stream)> mockOnSendStreamRemoved;
 };
