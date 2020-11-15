@@ -79,7 +79,7 @@ public:
     void SendOutro(std::string message) override;
     void SendStreamAvailable(const Stream& stream) override;
     void SendStreamRemoved(const Stream& stream) override;
-    void SendStreamMetadata(const Stream& stream) override;
+    void SendStreamMetadata(const Stream& stream, uint32_t viewerCount) override;
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
     void SetOnIntro(connection_cb_intro_t onIntro) override;
     void SetOnOutro(connection_cb_outro_t onOutro) override;

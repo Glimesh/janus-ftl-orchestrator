@@ -14,6 +14,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <list>
+
 #pragma region Constructor/Destructor
 template <class TConnection>
 Orchestrator<TConnection>::Orchestrator(
@@ -114,6 +116,21 @@ void Orchestrator<TConnection>::connectionClosed(std::weak_ptr<TConnection> conn
     if (auto strongConnection = connection.lock())
     {
         spdlog::info("Connection closed to {}", strongConnection->GetHostname());
+        // Remove all streams associated with this connection
+        if (auto streams = streamStore.RemoveAllConnectionStreams(strongConnection))
+        {
+            // Tell subscribers for these channels that the streams have been removed
+            for (const auto& stream : streams.value())
+            {
+                std::set<std::shared_ptr<IConnection>> subConnections = 
+                    subscriptions.GetSubscribedConnections(stream.ChannelId);
+                for (const auto& subConnection : subConnections)
+                {
+                    subConnection->SendStreamRemoved(stream);
+                }
+            }
+        }
+
         std::lock_guard<std::mutex> lock(connectionsMutex);
         pendingConnections.erase(strongConnection);
         connections.erase(strongConnection);
@@ -328,7 +345,8 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamMetadata(
         // TODO: We ought to filter based on stream ID as well.
         if (auto stream = streamStore.GetStreamByChannelId(channelId))
         {
-            stream.value().IngestConnection->SendStreamMetadata(stream.value());
+            // BUG:  Hmm... we really need to include hostname here
+            stream.value().IngestConnection->SendStreamMetadata(stream.value(), viewerCount);
 
             return ConnectionResult
             {

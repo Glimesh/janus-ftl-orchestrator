@@ -8,11 +8,13 @@
 #pragma once
 
 #include "FtlTypes.h"
+#include "IConnection.h"
 
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <list>
 
 class Stream;
 
@@ -24,15 +26,15 @@ class StreamStore
 public:
     /* Public methods */
     /**
-     * @brief Adds stream to the store.
-     * NOTE: It is expected that callers verify there is no duplicate Stream in the Store already.
+     * @brief
+     *  Adds stream to the store.
+     *  NOTE: It is expected that callers verify there is no duplicate Stream in the Store already.
      * @param stream Stream to add
      */
     void AddStream(Stream stream);
 
     /**
      * @brief Removes a stream with the given IDs from the store
-     * 
      * @param channelId channel ID to remove
      * @param streamId stream ID to remove
      * @return std::optional<Stream> Stream, if it exists
@@ -46,7 +48,16 @@ public:
      */
     std::optional<Stream> GetStreamByChannelId(ftl_channel_id_t channelId);
 
+    /**
+     * @brief Remove and return all streams originating from the given connection.
+     * @param connection the connection to find streams for
+     * @return std::optional<std::list<Stream>> list of streams removed, if any
+     */
+    std::optional<std::list<Stream>> RemoveAllConnectionStreams(
+        std::shared_ptr<IConnection> connection);
+
 private:
     std::mutex streamStoreMutex;
     std::map<ftl_channel_id_t, Stream> streamByChannelId;
+    std::map<std::shared_ptr<IConnection>, std::list<Stream>> streamsByIngestConnection;
 };

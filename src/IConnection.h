@@ -94,7 +94,7 @@ public:
      * 
      * @param stream stream to send metadata for
      */
-    virtual void SendStreamMetadata(const Stream& stream) = 0;
+    virtual void SendStreamMetadata(const Stream& stream, uint32_t viewerCount) = 0;
 
     /**
      * @brief

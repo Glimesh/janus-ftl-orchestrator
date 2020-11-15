@@ -184,7 +184,7 @@ void FtlConnection::SendStreamRemoved(const Stream& stream)
     // TODO
 }
 
-void FtlConnection::SendStreamMetadata(const Stream& stream)
+void FtlConnection::SendStreamMetadata(const Stream& stream, uint32_t viewerCount)
 {
     // TODO
 }

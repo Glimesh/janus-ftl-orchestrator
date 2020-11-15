@@ -11,6 +11,8 @@
 
 #include <functional>
 #include <string>
+#include <tuple>
+#include <vector>
 
 class MockConnection : public IConnection
 {
@@ -30,6 +32,30 @@ public:
     }
 
     // Mock utilities
+    bool IsStreamAvailable(ftl_channel_id_t channelId)
+    {
+        for (const auto& stream : availableStreams)
+        {
+            if (stream.ChannelId == channelId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool IsStreamAvailable(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+    {
+        for (const auto& stream : availableStreams)
+        {
+            if ((stream.ChannelId == channelId) && (stream.StreamId == streamId))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void MockFireOnConnectionClosed()
     {
         onConnectionClosed();
@@ -74,6 +100,17 @@ public:
         }
     }
 
+    void MockFireOnStreamMetadata(
+        ftl_channel_id_t channelId,
+        ftl_stream_id_t streamId,
+        uint32_t viewerCount)
+    {
+        if (onStreamMetadata)
+        {
+            onStreamMetadata(channelId, streamId, viewerCount);
+        }
+    }
+
     void SetMockOnDestructed(std::function<void(void)> onDestructed)
     {
         this->onDestructed = onDestructed;
@@ -91,6 +128,12 @@ public:
         this->mockOnSendStreamRemoved = mockOnSendStreamRemoved;
     }
 
+    void SetMockOnSendStreamMetadata(
+        std::function<void(Stream, uint32_t)> mockOnSendStreamMetadata)
+    {
+        this->mockOnSendStreamMetadata = mockOnSendStreamMetadata;
+    }
+
     // IConnection
     void Start() override
     { }
@@ -105,6 +148,8 @@ public:
 
     void SendStreamAvailable(const Stream& stream) override
     {
+        availableStreams.push_back(stream);
+
         if (mockOnSendStreamAvailable)
         {
             mockOnSendStreamAvailable(stream);
@@ -113,15 +158,30 @@ public:
 
     void SendStreamRemoved(const Stream& stream) override
     {
+        availableStreams.erase(
+            std::remove_if(
+                availableStreams.begin(),
+                availableStreams.end(),
+                [&stream](auto availableStream)
+                {
+                    return (
+                        (stream.ChannelId == availableStream.ChannelId) && 
+                        (stream.StreamId == availableStream.StreamId));
+                }),
+            availableStreams.end());
+
         if (mockOnSendStreamRemoved)
         {
             mockOnSendStreamRemoved(stream);
         }
     }
 
-    void SendStreamMetadata(const Stream& stream) override
+    void SendStreamMetadata(const Stream& stream, uint32_t viewerCount) override
     {
-        // TODO
+        if (mockOnSendStreamMetadata)
+        {
+            mockOnSendStreamMetadata(stream, viewerCount);
+        }
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -182,6 +242,10 @@ private:
 
     // Mock callbacks
     std::function<void(void)> onDestructed;
+    std::function<void(Stream, uint32_t)> mockOnSendStreamMetadata;
     std::function<void(Stream)> mockOnSendStreamAvailable;
     std::function<void(Stream)> mockOnSendStreamRemoved;
+
+    // Mock data
+    std::vector<Stream> availableStreams;
 };
