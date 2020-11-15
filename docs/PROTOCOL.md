@@ -69,13 +69,13 @@ This leaves 6 bits for the `type` field to indicate the type of the message.
 | `0`          | Intro               | Sent on connect with identifying information. |
 | `1`          | Outro               | Sent on disconnect with information on the reason for disconnect. |
 | _`2` - `15`_ | _Reserved_          | _Reserved for future use (server state messaging)_ |
-| `16`         | Subscribe Channel   | Request updates on a given channel. |
-| `17`         | Unsubscribe Channel | Request for no further updates on a given channel. |
+| `16`         | Subscribe Channel   | Request that streams for a given channel be relayed. |
+| `17`         | Unsubscribe Channel | Request to stop relays for a given channel. |
 | `18` - `19`  | _Reserved_          | _Reserved for future use (stream subscription management)_ |
-| `20`         | Stream Available    | Indicates that a new stream is now present. |
-| `21`         | Stream Removed      | Indicates that an existing stream is no longer present. |
-| `22`         | Stream Metadata     | Contains an update to stream metadata (such as viewership) |
-| `23`         | _Reserved_          | _Reserved for future use (stream updates)_ |
+| `20`         | Stream Available    | Indicates that a new stream is now available from this connection. |
+| `21`         | Stream Removed      | Indicates that an existing stream is no longer available from this connection. |
+| `22`         | Stream Start Relay  | Indicates that a node should start relaying a stream to another node. |
+| `23`         | Stream Stop Relay   | Indicates that a node should stop relaying a stream to another node. |
 | `24` - `63`  | _Reserved_          | _Reserved for future use_ |
 
 ### Msg Id
@@ -86,15 +86,16 @@ This leaves 6 bits for the `type` field to indicate the type of the message.
 
 The table below describes the payload format of each message type.
 
-| Message Type                | Payload |
-| --------------------------- | ------- |
-| `0` / Intro                 | 8-bit unsigned int major version<br />8-bit unsigned int minor version<br />8-bit unsigned integer revision<br />ASCII string hostname of client |
-| `1` / Outro                 | ASCII string describing reason for disconnect |
-| `16` / Subscribe Channel    | 32-bit unsigned integer channel ID |
-| `17` / Unsubscribe Channel  | 32-bit unsigned integer channel ID |
-| `20` / Stream Available     | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID<br />ASCII hostname string for Ingest |
-| `21` / Stream Removed       | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID |
-| `22` / Stream Metadata      | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID<br />32-bit unsigned integer viewer count |
+| Message Type                | Request Payload | Response Payload |
+| --------------------------- | --------------- | ---------------- |
+| `0` / Intro                 | 8-bit unsigned int major version<br />8-bit unsigned int minor version<br />8-bit unsigned integer revision<br />ASCII string hostname of client | None |
+| `1` / Outro                 | ASCII string describing reason for disconnect | None |
+| `16` / Subscribe Channel    | 32-bit unsigned integer channel ID<br />Binary stream key for relayed streams to use | None |
+| `17` / Unsubscribe Channel  | 32-bit unsigned integer channel ID | None |
+| `20` / Stream Available     | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
+| `21` / Stream Removed       | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
+| `22` / Stream Start Relay   | 32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer hostname length<br />ASCII hostname string<br />Binary stream key | None |
+| `23` / Stream Stop Relay    | 32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer hostname length<br />ASCII hostname string | None |
 
 # Usage Examples
 
@@ -102,22 +103,19 @@ The table below describes the payload format of each message type.
 
 1. Establish connection to FTL orchestration service, send **Intro** request message
 2. When an ingest begins, send a **Stream Available** request with the details of the new stream
+3. When a **Stream Start Relay** message is received, connect to the indicated node and relay the given stream via the FTL protocol with the provided key.
+4. When a **Stream End Relay** message is received, shut down the FTL relay connection for the given stream.
 3. When an ingest ends, send a **Stream Removed** request with the details of the ended stream
 4. When the service is shutting down, send an **Outro** request message
 
 ## Typical use case for FTL Edge/WebRTC
 
 1. Establish connection to FTL orchestration service, send **Intro** request message
-2. When a viewer requests to watch a channel, send a **Subscribe Channel** request message for that channel
-3. When a **Stream Available** request is received, extract the hostname for the stream's ingest from the message payload, then connect to the specified ingest server and begin relaying video (if viewers are present for the channel indicated)
-4. When a **Stream Removed** request is received, stop relaying video to viewers, and indicate to them that the stream has ended
-5. If no more viewers are present for a previously subscribed channel, send a **Unsubscribe Channel** request message for that channel
-6. When the service is shutting down, send an **Outro** request message
+2. When a viewer requests to watch a channel, send a **Subscribe Channel** request message for that channel, include a generated stream key that will be used for the FTL relay connection.
+3. Listen for incoming stream relays via the FTL protocol.
+4. If no more viewers are present for a previously subscribed channel, send a **Unsubscribe Channel** request message for that channel
+5. When the service is shutting down, send an **Outro** request message
 
 ## UML Sequence Diagram
 
 ![Typical FTL Orchestration Service Flow](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/Glimesh/janus-ftl-orchestrator/main/docs/uml/typical-flow.plantuml)
-
-# Open Questions
-
-- What is the protocol for contacting ingest servers to begin relaying video?
