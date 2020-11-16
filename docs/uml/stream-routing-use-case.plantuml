@@ -1,0 +1,89 @@
+@startuml
+title FTL Stream Routing Overview
+left to right direction
+
+' Streamers
+package "NYC Streamers" {
+    :NYC Streamer 1: as nycs1
+    :NYC Streamer 2: as nycs2
+}
+
+package "SEA Streamers" {
+    :SEA Streamer 1: as seas1
+    :SEA Streamer 2: as seas2
+}
+
+' Ingests
+package "NYC Ingest Servers" {
+    (NYC Ingest 1) as nyci1
+    (NYC Ingest 2) as nyci2
+}
+
+package "SEA Ingest Servers" {
+    (SEA Ingest 1) as seai1
+    (SEA Ingest 2) as seai2
+}
+
+' Relays
+package "NYC Relay Servers" as nycRelays {
+    (NYC Relay 1) as nycr1
+    (NYC Relay 2) as nycr2
+}
+
+package "SEA Relay Servers" {
+    (SEA Relay 1) as sear1
+    (SEA Relay 2) as sear2
+}
+
+' Edges
+package "NYC Edge Servers" {
+    (NYC Edge 1) as nyce1
+    (NYC Edge 2) as nyce2
+}
+
+package "SEA Edge Servers" {
+    (SEA Edge 1) as seae1
+    (SEA Edge 2) as seae2
+}
+
+' Viewers
+package "NYC Viewers" {
+    :NYC Viewer 1: as nycv1
+    :NYC Viewer 2: as nycv2
+}
+
+package "SEA Viewers" {
+    :SEA Viewer 1: as seav1
+    :SEA Viewer 2: as seav2
+}
+
+' Streamers connect to their region's ingests
+nycs1 --> nyci1
+nycs2 --> nyci2
+seas1 --> seai1
+seas2 --> seai2
+note left of nycs1: Each streamer is distributed\nto a regional ingest
+
+' Viewers connect to their regional edge node
+nyce1 --> nycv1
+note right of nycv1: This viewer wants to\nwatch NYC Streamer 1
+nyce2 --> nycv2
+note right of nycv2: This viewer wants to\nwatch SEA Streamer 2
+seae1 --> seav1
+note right of seav1: This viewer wants to\nwatch SEA Streamer 1
+seae2 --> seav2
+note right of seav2: This viewer wants to\nwatch NYC Streamer 2
+
+' Regional edge nodes connect to regional relays
+nycr1 --> nyce1
+nycr2 --> nyce2
+sear1 --> seae1
+sear2 --> seae2
+
+' Regional edge nodes relay from original ingest
+nyci1 --> nycr1
+seai2 --> nycr2
+seai1 --> sear1
+nyci2 --> sear2
+
+@enduml

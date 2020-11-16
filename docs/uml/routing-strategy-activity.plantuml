@@ -1,0 +1,49 @@
+@startuml
+title Orchestration Routing Strategy Activity Diagram
+
+partition "Viewer Browser" {
+    start
+    :Viewer requests Channel 123 from Edge node;
+}
+
+partition "Edge Janus Instance" {
+    if (Edge has existing\nChannel 123 Stream?) then (yes)
+        :Send stream data to viewer;
+        stop
+    else (no)
+        :Subscribe to Channel 123;
+    endif
+}
+
+partition "Orchestrator" {
+    if (Channel 123 Stream exists\non Relay in same region?) then (yes)
+        if (Is Relay at capacity?) then(yes)
+        else (no)
+            :Orchestrator directs Relay to send\nChannel 123 stream to Edge;
+            stop
+        endif
+    else (no)
+    endif
+    if (Is a Relay in the same region available?) then (yes)
+        :Orchestrator directs Ingest to send\nChannel 123 stream to regional Relay;
+        :Orchestrator directs regional Relay\nto send Channel 123 to Edge;
+        :Edge sends stream data to viewer;
+        stop
+    else (no)
+    endif
+    if (Is a Relay in a different region available?) then (yes)
+        :Orchestrator directs Ingest to send\nChannel 123 stream to non-regional Relay;
+        :Orchestrator directs non-regional Relay\nto send Channel 123 to Edge;
+        :Edge sends stream data to viewer;
+        stop
+    else (no)
+    endif
+    if (Is Ingest at capacity?) then (yes)
+        :Error - we ran out of capacity;
+        end
+    else (no)
+        :Orchestrator directs Ingest to\nsend Channel 123 stream to Edge;
+        stop
+    endif
+}
+@enduml

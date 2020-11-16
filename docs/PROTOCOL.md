@@ -1,20 +1,46 @@
 # FTL Orchestration Protocol
 
+In order to provide a video streaming service that can handle many viewers and many streamers at once, video must be distributed between many server instances to accommodate the bandwidth demand.
+
+![Video Routing Diagram](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/Glimesh/janus-ftl-orchestrator/main/docs/uml/stream-routing-use-case.plantuml)
+
+_[Video Routing Diagram](uml/stream-routing-use-case.plantuml): This diagram visualizes the high-level flow of video traffic from streamers through relay servers to edge nodes that viewers connect to._
+
+To most efficiently coordinate routing of traffic between these many servers, a separate service is being developed called the FTL Orchestrator.
+
 This document outlines the simple protocol used by [janus-ftl-orchestrator](https://github.com/Glimesh/janus-ftl-orchestrator) and [janus-ftl-plugin](https://github.com/Glimesh/janus-ftl-plugin) to communicate with each other and exchange information used to distribute video load across multiple Janus instances.
+
+# Goals and Non-Goals
 
 ## Goals
 
-- An arbitrary Janus instance serving WebRTC content to browser viewers can locate a source of stream data for a given channel/stream.
-- An arbitrary Janus instance serving WebRTC content to browser viewers can report viewership information to the origin of the stream.
-- A Janus ingest instance can alert other Janus viewer instances that a new stream has started.
+- Routes can be established allowing Janus Edge nodes to serve stream data that is relayed from other Ingest or Relay nodes.
+- Ingest nodes are notified when they need to relay streams to other nodes.
+- By subscribing to channels, Edge nodes can receive stream relays.
+- Stream data can be optionally routed through Relay nodes before reaching Edge nodes.
+- Nodes can indicate their approximate geographic region, allowing the Ochestrator to prioritize proximally efficient routes.
+- Nodes can indicate their current load, allowing the Orchestrator to avoid creating route bottlenecks.
+- Nodes are not sent video stream data unless there are viewers.
 - System is resilient to Janus instances dynamically coming online and going offline.
 
 ## Non-Goals
 
 - Automatic provisioning and/or destroying of Janus instances
-- Handling of video data
+- Handling of stream data (audio, video, etc.)
 
-# Protocol
+# Routing Strategy
+
+![Routing Strategy Activity Diagram](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/Glimesh/janus-ftl-orchestrator/main/docs/uml/routing-strategy-activity.plantuml)
+
+_[Routing Strategy Activity Diagram](uml/routing-strategy-activity.plantuml): This diagram visualizes the routing strategy that the Orchestrator will use to route streams from ingest nodes to edge nodes._
+
+## Routing Considerations
+
+Nodes will provide a region code when connecting to the Orchestration service. This region code will be used to prioritize routes between nodes in the same region.
+
+Nodes can indicate their current and maximum load via the `Node State` message. This will be used to distribute routes between nodes to minimize load.
+
+# Protocol (v0.0.1)
 
 The FTL Orchestration protocol is a simple binary messaging format transmitted over a TLS-secured TCP socket.
 
@@ -64,19 +90,17 @@ The `success/failure` bit allows the client to easily determine whether this mes
 
 This leaves 6 bits for the `type` field to indicate the type of the message.
 
-| Type (dec)   | Name                | Description |
-| ------------ | ------------------- | ----------- |
-| `0`          | Intro               | Sent on connect with identifying information. |
-| `1`          | Outro               | Sent on disconnect with information on the reason for disconnect. |
-| _`2` - `15`_ | _Reserved_          | _Reserved for future use (server state messaging)_ |
-| `16`         | Subscribe Channel   | Request that streams for a given channel be relayed. |
-| `17`         | Unsubscribe Channel | Request to stop relays for a given channel. |
-| `18` - `19`  | _Reserved_          | _Reserved for future use (stream subscription management)_ |
-| `20`         | Stream Available    | Indicates that a new stream is now available from this connection. |
-| `21`         | Stream Removed      | Indicates that an existing stream is no longer available from this connection. |
-| `22`         | Stream Start Relay  | Indicates that a node should start relaying a stream to another node. |
-| `23`         | Stream Stop Relay   | Indicates that a node should stop relaying a stream to another node. |
-| `24` - `63`  | _Reserved_          | _Reserved for future use_ |
+| Type (dec)   | Name                    | Description |
+| ------------ | ----------------------- | ----------- |
+| `0`          | Intro                   | Sent on connect with identifying information. |
+| `1`          | Outro                   | Sent on disconnect with information on the reason for disconnect. |
+| `2`          | Node State              | Sent periodically by nodes to indicate their current state. |
+| _`3` - `15`_ | _Reserved_              | _Reserved for future use (server state messaging)_ |
+| `16`         | Channel Subscription    | Indicates whether streams for a given channel should be relayed to this node. |
+| `17`         | Stream Publishing       | Indicates that a new stream is now available (or unavailable) from this connection. |
+| `18`         | Stream Relaying         | Contains information used for relaying streams between nodes. |
+| `19` - `31`  | _Reserved_              | _Reserved for future use_ |
+| `32` - `63`  | _Reserved_              | _Reserved for future use_ |
 
 ### Msg Id
 
@@ -88,14 +112,12 @@ The table below describes the payload format of each message type.
 
 | Message Type                | Request Payload | Response Payload |
 | --------------------------- | --------------- | ---------------- |
-| `0` / Intro                 | 8-bit unsigned int major version<br />8-bit unsigned int minor version<br />8-bit unsigned integer revision<br />ASCII string hostname of client | None |
+| `0` / Intro                 | 8-bit unsigned int protocol version major<br />8-bit unsigned int protocol version minor<br />8-bit unsigned integer protocol version revision<br />8-bit unsigned integer relay layer (`0` = not a relay)<br />16-bit unsigned integer region code length<br />ASCII region code<br />ASCII string hostname of node | None |
 | `1` / Outro                 | ASCII string describing reason for disconnect | None |
-| `16` / Subscribe Channel    | 32-bit unsigned integer channel ID<br />Binary stream key for relayed streams to use | None |
-| `17` / Unsubscribe Channel  | 32-bit unsigned integer channel ID | None |
-| `20` / Stream Available     | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
-| `21` / Stream Removed       | 32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
-| `22` / Stream Start Relay   | 32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer hostname length<br />ASCII hostname string<br />Binary stream key | None |
-| `23` / Stream Stop Relay    | 32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer hostname length<br />ASCII hostname string | None |
+| `2` / Node State            | 32-bit unsigned int current load units<br />32-bit unsigned int maximum load units | None |
+| `16` / Channel Subscription | Bool: `true` = subscribe, `false` = unsubscribe<br />32-bit unsigned integer channel ID<br />If subscribing, binary stream key for relayed streams to use | None |
+| `17` / Stream Publishing    | Bool: `true` = publish, `false` = unpublish<br />32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
+| `22` / Stream Relaying      | Bool: `true` = relay stream, `false` = stop relaying stream<br />32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer target hostname length<br />ASCII target hostname string<br />Binary stream key | None |
 
 # Usage Examples
 
@@ -118,4 +140,10 @@ The table below describes the payload format of each message type.
 
 ## UML Sequence Diagram
 
-![Typical FTL Orchestration Service Flow](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/Glimesh/janus-ftl-orchestrator/main/docs/uml/typical-flow.plantuml)
+![FTL Orchestration Sequence Diagram, No Relays](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/Glimesh/janus-ftl-orchestrator/main/docs/uml/sequence-diagram-no-relays.plantuml)
+
+_[FTL Orchestration Sequence Diagram, No Relays](uml/sequence-diagram-no-relays.plantuml): This diagram shows the expected sequence of calls to route a stream in a service graph without any relay nodes._
+
+![FTL Orchestration Sequence Diagram, Relays](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/Glimesh/janus-ftl-orchestrator/main/docs/uml/sequence-diagram-with-relays.plantuml)
+
+_[FTL Orchestration Sequence Diagram, Relays](uml/sequence-diagram-with-relays.plantuml): This diagram shows the expected sequence of calls to route a stream in a service graph with relay nodes between ingests and edges._
