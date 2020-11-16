@@ -1,0 +1,86 @@
+@startuml
+autonumber
+title FTL Orchestration Service Flow with Relay Layer
+
+actor nyStreamer as "NYC Streamer"
+participant ingest as "Janus NYC Ingest"
+participant orchestrator as "FTL Orchestration Service"
+participant relay as "Janus West Relay"
+participant edge as "Janus SEA Edge"
+actor edgeViewer as "SEA Viewer"
+
+== FTL Instance Registration ==
+' Ingest intro sequence
+ingest --> orchestrator: Intro Request
+note left
+    Ingest server registers
+    with the Orchestration Service
+end note
+ingest <-- orchestrator: Intro Response
+
+' Relay intro sequence
+orchestrator <-- relay: Intro Request
+note right
+    Relay server registers
+    with the Orchestration service
+end note
+orchestrator --> relay: Intro Response
+
+' Edge intro sequence
+orchestrator <-- edge: Intro Request
+note right
+    Edge server registers
+    with the Orchestration Service
+end note
+orchestrator --> edge: Intro Response
+
+== Streamer Starts Streaming ==
+nyStreamer -> ingest: New stream starts for channel 1
+note left
+    Streamer begins streaming
+end note
+ingest --> orchestrator: Stream Publish Request
+ingest <-- orchestrator: Stream Publish Response
+
+== Viewer Starts Viewing ==
+' Edge watch request
+edge <- edgeViewer : Request to watch channel 1
+note right
+    Viewer starts watching
+end note
+orchestrator <-- edge : Subscribe Channel Request
+note right
+    A new stream key for this channel is
+    generated and sent with this request
+end note
+orchestrator --> edge : Subscribe Channel Response
+
+' Relay relay request
+orchestrator --> relay: Stream Relaying Request
+note left
+    Orchestrator tells the Relay node to relay
+    the Channel 1 stream to the SEA Edge
+end note
+orchestrator <-- relay: Stream Relaying Response
+
+ingest <-- orchestrator: Stream Relaying Request
+note right
+    Orchestrator tells the Ingest node to relay
+    the Channel 1 stream to the West Relay
+end note
+ingest --> orchestrator: Stream Relaying Response
+ingest --> relay: Channel 1 stream relayed via FTL
+relay --> edge: Channel 1 stream relayed via FTL
+edge --> edgeViewer: Channel 1 stream is delivered via WebRTC
+
+== Streamer Stops Streaming ==
+nyStreamer -> ingest: Stream stops for channel 1
+note left
+    Streamer stops streaming
+end note
+ingest --> orchestrator: Stream Unpublish request
+ingest <-- orchestrator: Stream Unpublish response
+ingest --X relay: Channel 1 stream has ended
+relay --X edge: Channel 1 stream has ended
+edge --X edgeViewer: Channel 1 stream ended
+@enduml

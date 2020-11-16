@@ -27,8 +27,8 @@ nyStreamer -> nyc: New stream starts for channel 1
 note left
     Streamer begins streaming
 end note
-nyc --> orchestrator: Stream Available Request
-nyc <-- orchestrator: Stream Available Response
+nyc --> orchestrator: Stream Publish Request
+nyc <-- orchestrator: Stream Publish Response
 
 == Viewer Starts Viewing ==
 seaViewer -> sea: Request to watch channel 1
@@ -36,10 +36,17 @@ note right
     Viewer starts watching
 end note
 sea --> orchestrator: Subscribe Channel Request
+note right
+    A new stream key for this channel is
+    generated and sent with this request
+end note
 sea <-- orchestrator: Subscribe Channel Response
-sea <-- orchestrator: Stream Available Request
-sea --> nyc: Request stream relay for channel 1
-sea <-- nyc: Channel 1 stream is relayed
+nyc <-- orchestrator: Stream Relaying Request
+sea <-- nyc: Channel 1 stream relayed via FTL
+note left
+    The stream key for FTL relay is sent
+    with the Start Relay message
+end note
 sea --> seaViewer: Channel 1 stream is delivered via WebRTC
 
 == Streamer Stops Streaming ==
@@ -47,9 +54,8 @@ nyStreamer -> nyc: Stream stops for channel 1
 note left
     Streamer stops streaming
 end note
-nyc --> orchestrator: Stream removed request
-nyc <-- orchestrator: Stream removed response
-orchestrator --> sea: Stream removed request
-orchestrator <-- sea: Stream removed response
+nyc --> orchestrator: Stream Unpublish request
+nyc <-- orchestrator: Stream Unpublish response
+nyc --X sea: Channel 1 stream relay is ended
 sea --> seaViewer: Channel 1 stream ended
 @enduml
