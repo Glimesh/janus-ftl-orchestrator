@@ -169,22 +169,32 @@ void FtlConnection::Stop()
     }
 }
 
-void FtlConnection::SendOutro(std::string message)
+void FtlConnection::SendIntro(const ConnectionIntroPayload& payload)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamAvailable(const Stream& stream)
+void FtlConnection::SendOutro(const ConnectionOutroPayload& payload)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamRemoved(const Stream& stream)
+void FtlConnection::SendNodeState(const ConnectionNodeStatePayload& payload)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamMetadata(const Stream& stream, uint32_t viewerCount)
+void FtlConnection::SendChannelSubscription(const ConnectionSubscriptionPayload& payload)
+{
+    // TODO
+}
+
+void FtlConnection::SendStreamPublish(const ConnectionPublishPayload& payload)
+{
+    // TODO
+}
+
+void FtlConnection::SendStreamRelay(const ConnectionRelayPayload& payload)
 {
     // TODO
 }
@@ -204,29 +214,24 @@ void FtlConnection::SetOnOutro(connection_cb_outro_t onOutro)
     this->onOutro = onOutro;
 }
 
-void FtlConnection::SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel)
+void FtlConnection::SetOnNodeState(connection_cb_nodestate_t onNodeState)
 {
-    this->onSubscribeChannel = onSubscribeChannel;
+    this->onNodeState = onNodeState;
 }
 
-void FtlConnection::SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel)
+void FtlConnection::SetOnChannelSubscription(connection_cb_subscription_t onChannelSubscription)
 {
-    this->onUnsubscribeChannel = onUnsubscribeChannel;
+    this->onChannelSubscription = onChannelSubscription;
 }
 
-void FtlConnection::SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable)
+void FtlConnection::SetOnStreamPublish(connection_cb_publishing_t onStreamPublish)
 {
-    this->onStreamAvailable = onStreamAvailable;
+    this->onStreamPublish = onStreamPublish;
 }
 
-void FtlConnection::SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved)
+void FtlConnection::SetOnStreamRelay(connection_cb_relay_t onStreamRelay)
 {
-    this->onStreamRemoved = onStreamRemoved;
-}
-
-void FtlConnection::SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata)
-{
-    this->onStreamMetadata = onStreamMetadata;
+    this->onStreamRelay = onStreamRelay;
 }
 
 std::string FtlConnection::GetHostname()
@@ -300,20 +305,17 @@ void FtlConnection::processMessage(
     case OrchestrationMessageType::Outro:
         processOutroMessage(header, payload);
         break;
-    case OrchestrationMessageType::SubscribeChannel:
-        processSubscribeChannelMessage(header, payload);
+    case OrchestrationMessageType::NodeState:
+        processNodeStateMessage(header, payload);
         break;
-    case OrchestrationMessageType::UnsubscribeChannel:
-        processUnsubscribeChannelMessage(header, payload);
+    case OrchestrationMessageType::ChannelSubscription:
+        processChannelSubscriptionMessage(header, payload);
         break;
-    case OrchestrationMessageType::StreamAvailable:
-        processStreamAvailableMessage(header, payload);
+    case OrchestrationMessageType::StreamPublish:
+        processStreamPublishMessage(header, payload);
         break;
-    case OrchestrationMessageType::StreamRemoved:
-        processStreamRemovedMessage(header, payload);
-        break;
-    case OrchestrationMessageType::StreamMetadata:
-        processStreamMetadataMessage(header, payload);
+    case OrchestrationMessageType::StreamRelay:
+        processStreamRelayMessage(header, payload);
         break;
     default:
         break;
@@ -330,10 +332,13 @@ void FtlConnection::processIntroMessage(
     }
 
     // Extract version information and hostname from payload
-    uint8_t versionMajor = payload.at(0);
-    uint8_t versionMinor = payload.at(1);
-    uint8_t revision = payload.at(2);
-    hostname = std::string(payload.begin() + 3, payload.end());
+    ConnectionIntroPayload introPayload
+    {
+        .VersionMajor = payload.at(0),
+        .VersionMinor = payload.at(1),
+        .VersionRevision = payload.at(2),
+        .Hostname = std::string(payload.begin() + 3, payload.end())
+    };
 
     // Indicate that we received an intro
     ConnectionResult result
@@ -342,7 +347,7 @@ void FtlConnection::processIntroMessage(
     };
     if (onIntro)
     {
-        result = onIntro(versionMajor, versionMinor, revision, hostname);
+        result = onIntro(introPayload);
     }
 
     // Send a response
@@ -361,13 +366,15 @@ void FtlConnection::processOutroMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
-    // Extract reason from payload (if any)
-    auto outroReason = std::string(payload.begin(), payload.end());
+    ConnectionOutroPayload outroPayload
+    {
+        .DisconnectReason = std::string(payload.begin(), payload.end())
+    };
 
     // Indicate that we received an intro
     if (onOutro)
     {
-        onOutro(outroReason);
+        onOutro(outroPayload);
     }
 
     // Send a response
@@ -382,13 +389,20 @@ void FtlConnection::processOutroMessage(
     sendMessage(responseHeader, std::vector<uint8_t>());
 }
 
-void FtlConnection::processSubscribeChannelMessage(
+void FtlConnection::processNodeStateMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
-    if (payload.size() < 4)
+    // TODO
+}
+
+void FtlConnection::processChannelSubscriptionMessage(
+    const OrchestrationMessageHeader& header,
+    const std::vector<uint8_t>& payload)
+{
+    if (payload.size() < 5)
     {
-        throw std::range_error("Subscribe payload is too small.");
+        throw std::range_error("Subscription payload is too small.");
     }
 
     // Extract channel ID from payload

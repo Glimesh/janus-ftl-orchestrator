@@ -76,18 +76,19 @@ public:
     /* IConnection */
     void Start() override;
     void Stop() override;
-    void SendOutro(std::string message) override;
-    void SendStreamAvailable(const Stream& stream) override;
-    void SendStreamRemoved(const Stream& stream) override;
-    void SendStreamMetadata(const Stream& stream, uint32_t viewerCount) override;
+    void SendIntro(const ConnectionIntroPayload& payload) override;
+    void SendOutro(const ConnectionOutroPayload& payload) override;
+    void SendNodeState(const ConnectionNodeStatePayload& payload) override;
+    void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) override;
+    void SendStreamPublish(const ConnectionPublishPayload& payload) override;
+    void SendStreamRelay(const ConnectionRelayPayload& payload) override;
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override;
     void SetOnIntro(connection_cb_intro_t onIntro) override;
     void SetOnOutro(connection_cb_outro_t onOutro) override;
-    void SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel) override;
-    void SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel) override;
-    void SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable) override;
-    void SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved) override;
-    void SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata) override;
+    void SetOnNodeState(connection_cb_nodestate_t onNodeState) override;
+    void SetOnChannelSubscription(connection_cb_subscription_t onChannelSubscription) override;
+    void SetOnStreamPublish(connection_cb_publishing_t onStreamPublish) override;
+    void SetOnStreamRelay(connection_cb_relay_t onStreamRelay) override;
     std::string GetHostname() override;
 
 private:
@@ -97,11 +98,10 @@ private:
     std::function<void(void)> onConnectionClosed;
     connection_cb_intro_t onIntro;
     connection_cb_outro_t onOutro;
-    connection_cb_subscribe_t onSubscribeChannel;
-    connection_cb_unsubscribe_t onUnsubscribeChannel;
-    connection_cb_streamavailable_t onStreamAvailable;
-    connection_cb_streamremoved_t onStreamRemoved;
-    connection_cb_streammetadata_t onStreamMetadata;
+    connection_cb_nodestate_t onNodeState;
+    connection_cb_subscription_t onChannelSubscription;
+    connection_cb_publishing_t onStreamPublish;
+    connection_cb_relay_t onStreamRelay;
     std::string hostname;
 
     /* Private methods */
@@ -127,51 +127,44 @@ private:
         const std::vector<uint8_t>& payload);
 
     /**
-     * @brief Process Orchestration Protocol Nessage of type Intro
+     * @brief Process Orchestration Protocol Message of type Intro
      */
     void processIntroMessage(
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload);
 
     /**
-     * @brief Process Orchestration Protocol Nessage of type Outro
+     * @brief Process Orchestration Protocol Message of type Outro
      */
     void processOutroMessage(
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload);
 
     /**
-     * @brief Process Orchestration Protocol Nessage of type SubscribeChannel
+     * @brief Process Orchestration Protocol Message of type Node State
      */
-    void processSubscribeChannelMessage(
+    void processNodeStateMessage(
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload);
 
     /**
-     * @brief Process Orchestration Protocol Nessage of type UnsubscribeChannel
+     * @brief Process Orchestration Protocol Message of type Channel Subscription
      */
-    void processUnsubscribeChannelMessage(
+    void processChannelSubscriptionMessage(
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload);
 
     /**
-     * @brief Process Orchestration Protocol Nessage of type StreamAvailable
+     * @brief Process Orchestration Protocol Message of type Stream Publishing
      */
-    void processStreamAvailableMessage(
+    void processStreamPublishMessage(
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload);
 
     /**
-     * @brief Process Orchestration Protocol Nessage of type StreamRemoved
+     * @brief Process Orchestration Protocol Message of type Stream Relay
      */
-    void processStreamRemovedMessage(
-        const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload);
-
-    /**
-     * @brief Process Orchestration Protocol Nessage of type StreamMetadata
-     */
-    void processStreamMetadataMessage(
+    void processStreamRelayMessage(
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload);
 

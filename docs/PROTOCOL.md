@@ -115,9 +115,9 @@ The table below describes the payload format of each message type.
 | `0` / Intro                 | 8-bit unsigned int protocol version major<br />8-bit unsigned int protocol version minor<br />8-bit unsigned integer protocol version revision<br />8-bit unsigned integer relay layer (`0` = not a relay)<br />16-bit unsigned integer region code length<br />ASCII region code<br />ASCII string hostname of node | None |
 | `1` / Outro                 | ASCII string describing reason for disconnect | None |
 | `2` / Node State            | 32-bit unsigned int current load units<br />32-bit unsigned int maximum load units | None |
-| `16` / Channel Subscription | Bool: `true` = subscribe, `false` = unsubscribe<br />32-bit unsigned integer channel ID<br />If subscribing, binary stream key for relayed streams to use | None |
-| `17` / Stream Publishing    | Bool: `true` = publish, `false` = unpublish<br />32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
-| `22` / Stream Relaying      | Bool: `true` = relay stream, `false` = stop relaying stream<br />32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer target hostname length<br />ASCII target hostname string<br />Binary stream key | None |
+| `16` / Channel Subscription | 8-bit context value: `1` = subscribe, `0` = unsubscribe<br />32-bit unsigned integer channel ID<br />If subscribing, binary stream key for relayed streams to use | None |
+| `17` / Stream Publishing    | 8-bit context value: `1` = publish, `0` = unpublish<br />32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
+| `22` / Stream Relaying      | 8-bit context value: `1` = relay stream, `0` = stop relaying stream<br />32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer target hostname length<br />ASCII target hostname string<br />Binary stream key | None |
 
 # Usage Examples
 

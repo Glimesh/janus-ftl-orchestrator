@@ -9,6 +9,7 @@
 
 #include "Stream.h"
 
+#include <cstddef>
 #include <functional>
 #include <string>
 
@@ -24,28 +25,70 @@ struct ConnectionResult
     bool IsSuccess;
 };
 
+/* Connection Message Payload Types */
+struct ConnectionIntroPayload
+{
+    uint8_t VersionMajor;
+    uint8_t VersionMinor;
+    uint8_t VersionRevision;
+    uint8_t RelayLayer;
+    std::string RegionCode;
+    std::string Hostname;
+};
+
+struct ConnectionOutroPayload
+{
+    std::string DisconnectReason;
+};
+
+struct ConnectionNodeStatePayload
+{
+    uint32_t CurrentLoad;
+    uint32_t MaximumLoad;
+};
+
+struct ConnectionSubscriptionPayload
+{
+    bool IsSubscribe;
+    uint32_t ChannelId;
+    std::vector<std::byte> StreamKey;
+};
+
+struct ConnectionPublishPayload
+{
+    bool IsPublish;
+    uint32_t ChannelId;
+    uint32_t StreamId;
+};
+
+struct ConnectionRelayPayload
+{
+    bool IsStartRelay;
+    uint32_t ChannelId;
+    uint32_t StreamId;
+    std::string TargetHostname;
+    std::vector<std::byte> StreamKey;
+};
+
 /* Callback types */
 typedef 
-    std::function<ConnectionResult(uint8_t, uint8_t, uint8_t, std::string)>
+    std::function<ConnectionResult(ConnectionIntroPayload)>
     connection_cb_intro_t;
 typedef
-    std::function<ConnectionResult(std::string)>
+    std::function<ConnectionResult(ConnectionOutroPayload)>
     connection_cb_outro_t;
 typedef
-    std::function<ConnectionResult(ftl_channel_id_t)>
-    connection_cb_subscribe_t;
+    std::function<ConnectionResult(ConnectionNodeStatePayload)>
+    connection_cb_nodestate_t;
 typedef
-    std::function<ConnectionResult(ftl_channel_id_t)>
-    connection_cb_unsubscribe_t;
+    std::function<ConnectionResult(ConnectionSubscriptionPayload)>
+    connection_cb_subscription_t;
 typedef
-    std::function<ConnectionResult(ftl_channel_id_t, ftl_stream_id_t, std::string)>
-    connection_cb_streamavailable_t;
+    std::function<ConnectionResult(ConnectionPublishPayload)>
+    connection_cb_publishing_t;
 typedef
-    std::function<ConnectionResult(ftl_channel_id_t, ftl_stream_id_t)>
-    connection_cb_streamremoved_t;
-typedef
-    std::function<ConnectionResult(ftl_channel_id_t, ftl_stream_id_t, uint32_t)>
-    connection_cb_streammetadata_t;
+    std::function<ConnectionResult(ConnectionRelayPayload)>
+    connection_cb_relay_t;
 
 /**
  * @brief
@@ -69,32 +112,46 @@ public:
     virtual void Stop() = 0;
 
     /**
+     * @brief Sends an intro message to this connection with metadata on the connection
+     * @param payload Payload containing intro details
+     */
+    virtual void SendIntro(const ConnectionIntroPayload& payload) = 0;
+
+    /**
      * @brief Sends an outro message to this connection indicating reason for disconnect
-     * 
-     * @param message Message explaining disconnect reason
+     * @param payload Payload containing outro details
      */
-    virtual void SendOutro(std::string message) = 0;
+    virtual void SendOutro(const ConnectionOutroPayload& payload) = 0;
 
     /**
-     * @brief Sends a message to this connection indicating that a new stream is available
-     * 
-     * @param stream the stream that has been made available
+     * @brief Sends a message with the state of the node (estimated load, etc.)
+     * @param payload Payload containing node state details
      */
-    virtual void SendStreamAvailable(const Stream& stream) = 0;
+    virtual void SendNodeState(const ConnectionNodeStatePayload& payload) = 0;
 
     /**
-     * @brief Sends a message to this connection indicating that a stream has ended
-     * 
-     * @param stream the stream that has ended
+     * @brief
+     *  Sends a channel subscription message, used to (un)subscribe to updates on streams for
+     *  a particular channel
+     * @param payload details on channel subscription being requested
      */
-    virtual void SendStreamRemoved(const Stream& stream) = 0;
+    virtual void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) = 0;
 
     /**
-     * @brief Sends a stream metadata update to this connection
-     * 
-     * @param stream stream to send metadata for
+     * @brief
+     *  Sends a stream publishing message to this connection, used to indicate availability
+     *  of a new stream.
+     * @param payload payload indicating details of the publish message
      */
-    virtual void SendStreamMetadata(const Stream& stream, uint32_t viewerCount) = 0;
+    virtual void SendStreamPublish(const ConnectionPublishPayload& payload) = 0;
+
+    /**
+     * @brief
+     *  Sends a stream relay message, indicating that a stream should be forwarded to another node
+     *  (or that a relay should be stopped).
+     * @param payload payload with details on the stream relay
+     */
+    virtual void SendStreamRelay(const ConnectionRelayPayload& payload) = 0;
 
     /**
      * @brief
@@ -120,52 +177,33 @@ public:
 
     /**
      * @brief
-     *  Sets the callback that will fire when this connection has requested a subscription
-     *  to updates for a given channel ID
-     * 
-     * @param onSubscribeChannel callback to fire on new channel subscription request
+     *  Sets the callback that will fire when this connection has received a node state message.
      */
-    virtual void SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel) = 0;
+    virtual void SetOnNodeState(connection_cb_nodestate_t onNodeState) = 0;
 
     /**
      * @brief
-     *  Sets the callback that will fire when this connection has requested to unsubscribe
-     *  from updates for a given channel ID
-     * 
-     * @param onUnsubscribeChannel callback to fire on channel unsubscribe request
+     *  Sets the callback that will fire when this connection has received a subscription message
      */
-    virtual void SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel) = 0;
+    virtual void SetOnChannelSubscription(connection_cb_subscription_t onChannelSubscription) = 0;
 
     /**
      * @brief
-     *  Sets the callback that will fire when this connection has indicated that a new stream
-     *  ingest has been started.
-     * 
-     * @param onStreamAvailable callback to fire on new stream ingested
+     *  Sets the callback that will fire when this connection has received a stream publishing
+     *  message, indicating availability (or removal) of a stream
      */
-    virtual void SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable) = 0;
+    virtual void SetOnStreamPublish(connection_cb_publishing_t onStreamPublish) = 0;
 
     /**
      * @brief
-     *  Sets the callback that will fire when this connection has indicated that an existing
-     *  stream ingest has ended.
-     * 
-     * @param onStreamRemoved callback to fire on existing stream ended
+     *  Sets the callback that will fire when this connection has received a stream relay
+     *  message, indicating that a stream should be forwarded to another node (or that a relay
+     *  should be stopped)
      */
-    virtual void SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved) = 0;
-
-    /**
-     * @brief 
-     *  Sets the callback that will fire when this connection provides metadata for a stream
-     * 
-     * @param onStreamViewersUpdated callback to fire when new metadata is sent
-     */
-    virtual void SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata) = 0;
+    virtual void SetOnStreamRelay(connection_cb_relay_t onStreamRelay) = 0;
 
     /**
      * @brief Retrieve the hostname of the FTL server represented by this connection
-     * 
-     * @return std::string the hostname
      */
     virtual std::string GetHostname() = 0;
 };
