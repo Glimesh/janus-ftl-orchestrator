@@ -66,12 +66,22 @@ public:
     static std::vector<uint8_t> ConvertToNetworkPayload(const uint32_t value);
 
     /**
-     * @brief Takes a network encoded payload and deserializes it to a host uint32_t value
-     * 
+     * @brief Takes a network encoded byte payload and deserializes it to a host uint16_t value
+     * @param payload Payload to deserialize
+     * @return uint16_t Resulting value
+     */
+    static uint16_t DeserializeNetworkUint16(
+        const std::vector<uint8_t>::const_iterator& begin,
+        const std::vector<uint8_t>::const_iterator& end);
+
+    /**
+     * @brief Takes a network encoded byte payload and deserializes it to a host uint32_t value
      * @param payload Payload to deserialize
      * @return uint32_t Resulting value
      */
-    static uint32_t DeserializeNetworkUint32(const std::vector<uint8_t>& payload);
+    static uint32_t DeserializeNetworkUint32(
+        const std::vector<uint8_t>::const_iterator& begin,
+        const std::vector<uint8_t>::const_iterator& end);
 
     /* IConnection */
     void Start() override;

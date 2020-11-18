@@ -61,53 +61,51 @@ public:
         onConnectionClosed();
     }
 
-    void MockFireOnIntro(
-        uint8_t versionMajor,
-        uint8_t versionMinor,
-        uint8_t versionRevision,
-        std::string host)
+    void MockFireOnIntro(ConnectionIntroPayload payload)
     {
         if (onIntro)
         {
-            onIntro(versionMajor, versionMinor, versionRevision, host);
+            onIntro(payload);
         }
     }
 
-    void MockFireOnSubscribeChannel(ftl_channel_id_t channelId)
+    void MockFireOnOutro(ConnectionOutroPayload payload)
     {
-        if (onSubscribeChannel)
+        if (onOutro)
         {
-            onSubscribeChannel(channelId);
+            onOutro(payload);
         }
     }
 
-    void MockFireOnStreamAvailable(
-        ftl_channel_id_t channelId,
-        ftl_stream_id_t streamId,
-        std::string hostname)
+    void MockFireOnNodeState(ConnectionNodeStatePayload payload)
     {
-        if (onStreamAvailable)
+        if (onNodeState)
         {
-            onStreamAvailable(channelId, streamId, hostname);
+            onNodeState(payload);
         }
     }
 
-    void MockFireOnStreamRemoved(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+    void MockFireOnChannelSubscription(ConnectionSubscriptionPayload payload)
     {
-        if (onStreamRemoved)
+        if (onChannelSubscription)
         {
-            onStreamRemoved(channelId, streamId);
+            onChannelSubscription(payload);
         }
     }
 
-    void MockFireOnStreamMetadata(
-        ftl_channel_id_t channelId,
-        ftl_stream_id_t streamId,
-        uint32_t viewerCount)
+    void MockFireOnStreamPublish(ConnectionPublishPayload payload)
     {
-        if (onStreamMetadata)
+        if (onStreamPublish)
         {
-            onStreamMetadata(channelId, streamId, viewerCount);
+            onStreamPublish(payload);
+        }
+    }
+
+    void MockFireOnStreamRelay(ConnectionRelayPayload payload)
+    {
+        if (onStreamRelay)
+        {
+            onStreamRelay(payload);
         }
     }
 
@@ -116,22 +114,10 @@ public:
         this->onDestructed = onDestructed;
     }
 
-    void SetMockOnSendStreamAvailable(
-        std::function<void(Stream)> mockOnSendStreamAvailable)
+    void SetMockOnSendStreamPublish(
+        std::function<void(ConnectionPublishPayload)> mockOnSendStreamPublish)
     {
-        this->mockOnSendStreamAvailable = mockOnSendStreamAvailable;
-    }
-
-    void SetMockOnSendStreamRemoved(
-        std::function<void(Stream)> mockOnSendStreamRemoved)
-    {
-        this->mockOnSendStreamRemoved = mockOnSendStreamRemoved;
-    }
-
-    void SetMockOnSendStreamMetadata(
-        std::function<void(Stream, uint32_t)> mockOnSendStreamMetadata)
-    {
-        this->mockOnSendStreamMetadata = mockOnSendStreamMetadata;
+        this->mockOnSendStreamPublish = mockOnSendStreamPublish;
     }
 
     // IConnection
@@ -141,47 +127,61 @@ public:
     void Stop() override
     { }
 
-    void SendOutro(std::string message) override
+    void SendIntro(const ConnectionIntroPayload& payload) override
+    {
+        // TODO
+    }
+
+    void SendOutro(const ConnectionOutroPayload& payload) override
     { 
         // TODO
     }
 
-    void SendStreamAvailable(const Stream& stream) override
+    void SendNodeState(const ConnectionNodeStatePayload& payload) override
     {
-        availableStreams.push_back(stream);
-
-        if (mockOnSendStreamAvailable)
-        {
-            mockOnSendStreamAvailable(stream);
-        }
+        // TODO
     }
 
-    void SendStreamRemoved(const Stream& stream) override
+    void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) override
     {
-        availableStreams.erase(
+        // TODO
+    }
+
+    void SendStreamPublish(const ConnectionPublishPayload& payload) override
+    {
+        if (payload.IsPublish)
+        {
+            Stream newStream
+            {
+                .ChannelId = payload.ChannelId,
+                .StreamId = payload.StreamId,
+            };
+            availableStreams.push_back(newStream);
+        }
+        else
+        {
+            availableStreams.erase(
             std::remove_if(
                 availableStreams.begin(),
                 availableStreams.end(),
-                [&stream](auto availableStream)
+                [&payload](auto availableStream)
                 {
                     return (
-                        (stream.ChannelId == availableStream.ChannelId) && 
-                        (stream.StreamId == availableStream.StreamId));
+                        (availableStream.ChannelId == payload.ChannelId) && 
+                        (availableStream.StreamId == payload.StreamId));
                 }),
             availableStreams.end());
+        }
 
-        if (mockOnSendStreamRemoved)
+        if (mockOnSendStreamPublish)
         {
-            mockOnSendStreamRemoved(stream);
+            mockOnSendStreamPublish(payload);
         }
     }
 
-    void SendStreamMetadata(const Stream& stream, uint32_t viewerCount) override
+    void SendStreamRelay(const ConnectionRelayPayload& payload) override
     {
-        if (mockOnSendStreamMetadata)
-        {
-            mockOnSendStreamMetadata(stream, viewerCount);
-        }
+        // TODO
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -199,29 +199,24 @@ public:
         this->onOutro = onOutro;
     }
 
-    void SetOnSubscribeChannel(connection_cb_subscribe_t onSubscribeChannel) override
+    void SetOnNodeState(connection_cb_nodestate_t onNodeState) override
     {
-        this->onSubscribeChannel = onSubscribeChannel;
+        this->onNodeState = onNodeState;
     }
 
-    void SetOnUnsubscribeChannel(connection_cb_unsubscribe_t onUnsubscribeChannel) override
+    void SetOnChannelSubscription(connection_cb_subscription_t onChannelSubscription) override
     {
-        this->onUnsubscribeChannel = onUnsubscribeChannel;
+        this->onChannelSubscription = onChannelSubscription;
     }
 
-    void SetOnStreamAvailable(connection_cb_streamavailable_t onStreamAvailable) override
+    void SetOnStreamPublish(connection_cb_publishing_t onStreamPublish) override
     {
-        this->onStreamAvailable = onStreamAvailable;
+        this->onStreamPublish = onStreamPublish;
     }
 
-    void SetOnStreamRemoved(connection_cb_streamremoved_t onStreamRemoved) override
+    void SetOnStreamRelay(connection_cb_relay_t onStreamRelay) override
     {
-        this->onStreamRemoved = onStreamRemoved;
-    }
-
-    void SetOnStreamMetadata(connection_cb_streammetadata_t onStreamMetadata) override
-    {
-        this->onStreamMetadata = onStreamMetadata;
+        this->onStreamRelay = onStreamRelay;
     }
 
     std::string GetHostname() override
@@ -233,18 +228,15 @@ private:
     std::function<void(void)> onConnectionClosed;
     connection_cb_intro_t onIntro;
     connection_cb_outro_t onOutro;
-    connection_cb_subscribe_t onSubscribeChannel;
-    connection_cb_unsubscribe_t onUnsubscribeChannel;
-    connection_cb_streamavailable_t onStreamAvailable;
-    connection_cb_streamremoved_t onStreamRemoved;
-    connection_cb_streammetadata_t onStreamMetadata;
+    connection_cb_nodestate_t onNodeState;
+    connection_cb_subscription_t onChannelSubscription;
+    connection_cb_publishing_t onStreamPublish;
+    connection_cb_relay_t onStreamRelay;
     std::string hostname;
 
     // Mock callbacks
     std::function<void(void)> onDestructed;
-    std::function<void(Stream, uint32_t)> mockOnSendStreamMetadata;
-    std::function<void(Stream)> mockOnSendStreamAvailable;
-    std::function<void(Stream)> mockOnSendStreamRemoved;
+    std::function<void(ConnectionPublishPayload)> mockOnSendStreamPublish;
 
     // Mock data
     std::vector<Stream> availableStreams;

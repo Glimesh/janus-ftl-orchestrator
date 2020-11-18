@@ -3,9 +3,7 @@
  * @author Hayden McAfee (hayden@outlook.com)
  * @date 2020-10-25
  * @copyright Copyright (c) 2020 Hayden McAfee
- * @brief
- *  Contains unit tests for the Orchestrator class. Sort of spaghetti right now - eventually
- *  we should create a test fixture for this and add some helper methods.
+ * @brief Contains unit tests for the Orchestrator class. 
  */
 
 #include <catch2/catch.hpp>
@@ -90,10 +88,13 @@ protected:
         if (fireIntro)
         {
             connection->MockFireOnIntro(
-                protocolVersionMajor,
-                protocolVersionMinor,
-                protocolVersionRevision,
-                connection->GetHostname());
+                {
+                    .VersionMajor = protocolVersionMajor,
+                    .VersionMinor = protocolVersionMinor,
+                    .VersionRevision = protocolVersionRevision,
+                    .RelayLayer = 0,
+                    .Hostname = connection->GetHostname(),
+                });
         }
     }
 
@@ -175,7 +176,14 @@ TEST_CASE_METHOD(
     REQUIRE(orchestrator->GetConnections().count(mockConnection) == 0);
 
     // Fire mock intro message
-    mockConnection->MockFireOnIntro(0, 0, 0, "mock");
+    mockConnection->MockFireOnIntro(
+        {
+            .VersionMajor = protocolVersionMajor,
+            .VersionMinor = protocolVersionMinor,
+            .VersionRevision = protocolVersionRevision,
+            .RelayLayer = 0,
+            .Hostname = mockConnection->GetHostname(),
+        });
 
     // Check that our mock connection is now counted
     REQUIRE(orchestrator->GetConnections().count(mockConnection) == 1);
@@ -198,6 +206,8 @@ TEST_CASE_METHOD(
     "[orchestrator]")
 {
     init();
+
+    // TODO
 }
 
 TEST_CASE_METHOD(
@@ -217,27 +227,36 @@ TEST_CASE_METHOD(
     // Subscribe to updates for a channel
     for (const auto& connection : edgeConnections)
     {
-        connection->MockFireOnSubscribeChannel(channelId);
+        connection->MockFireOnChannelSubscription(
+            {
+                .IsSubscribe = true,
+                .ChannelId = channelId,
+                .StreamKey = std::vector<std::byte>(),
+            });
     }
 
     // Connect the ingest and have it report the stream
     auto ingest = generateAndConnectMockConnection("ingest");
-    ingest->MockFireOnStreamAvailable(channelId, streamId, "ingest");
+    ingest->MockFireOnStreamPublish(
+        {
+            .IsPublish = true,
+            .ChannelId = channelId,
+            .StreamId = streamId,
+        });
 
-    // Make sure the edge nodes saw the new channel
-    for (const auto& connection : edgeConnections)
-    {
-        REQUIRE(connection->IsStreamAvailable(channelId, streamId) == true);
-    }
+    // TODO: At this point, we'd expect the ingest to receive a relay message, instructing it to
+    // relay the stream to the edge nodes.
 
     // Have ingest report the stream has been removed
-    ingest->MockFireOnStreamRemoved(channelId, streamId);
-    
-    // Make sure edge nodes see the stream has been removed
-    for (const auto& connection : edgeConnections)
-    {
-        REQUIRE(connection->IsStreamAvailable(channelId, streamId) == false);
-    }
+    ingest->MockFireOnStreamPublish(
+        {
+            .IsPublish = false,
+            .ChannelId = channelId,
+            .StreamId = streamId,
+        });
+
+    // TODO: At this point, we'd expect any relays in the route to be instructed to stop relaying
+    // the stream.
 }
 
 TEST_CASE_METHOD(
@@ -252,85 +271,24 @@ TEST_CASE_METHOD(
 
     // Connect the ingest, and have it indicate that the stream is available.
     auto ingest = generateAndConnectMockConnection("ingest");
-    ingest->MockFireOnStreamAvailable(channelId, streamId, "ingest");
+    ingest->MockFireOnStreamPublish(
+        {
+            .IsPublish = true,
+            .ChannelId = channelId,
+            .StreamId = streamId,
+        });
 
     // Connect the edge, subscribe to the stream
     auto edge = generateAndConnectMockConnection("edge");
-    edge->MockFireOnSubscribeChannel(channelId);
-
-    // Did we get the stream available notification?
-    REQUIRE(edge->IsStreamAvailable(channelId, streamId) == true);
-}
-
-TEST_CASE_METHOD(
-    OrchestratorUnitTestsFixture,
-    "Orchestrator sends unsubscribes for streams when the ingest has disconnected",
-    "[orchestrator]")
-{
-    init();
-
-    ftl_channel_id_t channelId = 1234;
-    ftl_stream_id_t streamId = 5678;
-
-    // Connect a few edge nodes and subscribe them
-    auto edges = generateAndConnectMockConnections("edge", 3);
-    for (const auto& edge : edges)
-    {
-        edge->MockFireOnSubscribeChannel(channelId);
-    }
-
-    // Connect the ingest
-    auto ingest = generateAndConnectMockConnection("ingest");
-
-    // Make channel live
-    ingest->MockFireOnStreamAvailable(channelId, streamId, "ingest");
-
-    // Disconnect the ingest
-    ingest->MockFireOnConnectionClosed();
-
-    // Make sure the streams went away
-    for (const auto& edge : edges)
-    {
-        REQUIRE(edge->IsStreamAvailable(channelId, streamId) == false);
-    }
-}
-
-TEST_CASE_METHOD(
-    OrchestratorUnitTestsFixture,
-    "Orchestrator sends metadata updates to original ingest",
-    "[orchestrator]")
-{
-    init();
-
-    ftl_channel_id_t channelId = 1234;
-    ftl_stream_id_t streamId = 5678;
-
-    // Connect a few edge nodes and subscribe them
-    int numEdges = 3;
-    auto edges = generateAndConnectMockConnections("edge", numEdges);
-    for (const auto& edge : edges)
-    {
-        edge->MockFireOnSubscribeChannel(channelId);
-    }
-
-    // Connect the ingest
-    int viewersReported = 0;
-    auto ingest = generateAndConnectMockConnection("ingest");
-    ingest->SetMockOnSendStreamMetadata(
-        [&viewersReported](Stream stream, uint32_t viewerCount)
+    edge->MockFireOnChannelSubscription(
         {
-            viewersReported += viewerCount;
+            .IsSubscribe = true,
+            .ChannelId = channelId,
+            .StreamKey = std::vector<std::byte>(),
         });
-    ingest->MockFireOnStreamAvailable(channelId, streamId, "ingest");
-    
-    // Report one viewer per edge
-    for (const auto& edge : edges)
-    {
-        edge->MockFireOnStreamMetadata(channelId, streamId, 1);
-    }
 
-    // Confirm we got 1 viewer per edge
-    REQUIRE(viewersReported == numEdges);
+    // TODO: At this point, we'd expect the ingest to receive a relay message, instructing it to
+    // relay the stream to the edge nodes.
 }
 
-// TODO: Test cases to cover orchestrator logic
+// TODO: Test cases to cover orchestrator/routing logic

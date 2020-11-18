@@ -65,32 +65,21 @@ private:
     void connectionClosed(std::weak_ptr<TConnection> connection);
     ConnectionResult connectionIntro(
         std::weak_ptr<TConnection> connection,
-        uint8_t versionMajor,
-        uint8_t versionMinor,
-        uint8_t versionRevision,
-        std::string hostname);
+        ConnectionIntroPayload payload);
     ConnectionResult connectionOutro(
         std::weak_ptr<TConnection> connection,
-        std::string reason);
-    ConnectionResult connectionSubscribeChannel(
+        ConnectionOutroPayload payload);
+    ConnectionResult connectionNodeState(
         std::weak_ptr<TConnection> connection,
-        ftl_channel_id_t channelId);
-    ConnectionResult connectionUnsubscribeChannel(
+        ConnectionNodeStatePayload payload);
+    ConnectionResult connectionChannelSubscription(
         std::weak_ptr<TConnection> connection,
-        ftl_channel_id_t channelId);
-    ConnectionResult connectionStreamAvailable(
+        ConnectionSubscriptionPayload payload);
+    ConnectionResult connectionStreamPublish(
         std::weak_ptr<TConnection> connection,
-        ftl_channel_id_t channelId,
-        ftl_stream_id_t streamId,
-        std::string hostname);
-    ConnectionResult connectionStreamRemoved(
+        ConnectionPublishPayload payload);
+    ConnectionResult connectionStreamRelay(
         std::weak_ptr<TConnection> connection,
-        ftl_channel_id_t channelId,
-        ftl_stream_id_t streamId);
-    ConnectionResult connectionStreamMetadata(
-        std::weak_ptr<TConnection> connection,
-        ftl_channel_id_t channelId,
-        ftl_stream_id_t streamId,
-        uint32_t viewerCount);
+        ConnectionRelayPayload payload);
     
 };
