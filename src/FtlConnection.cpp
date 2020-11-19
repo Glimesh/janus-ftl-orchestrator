@@ -7,6 +7,8 @@
 
 #include "FtlConnection.h"
 
+#include <spdlog/spdlog.h>
+
 #include <bit>
 #include <optional>
 
@@ -121,26 +123,49 @@ std::vector<uint8_t> FtlConnection::ConvertToNetworkPayload(const uint32_t value
     return payload;
 }
 
-uint32_t FtlConnection::DeserializeNetworkUint32(const std::vector<uint8_t>& payload)
+uint16_t FtlConnection::DeserializeNetworkUint16(
+    const std::vector<uint8_t>::const_iterator& begin,
+    const std::vector<uint8_t>::const_iterator& end)
 {
-    if (payload.size() != 4)
+    if ((end - begin) != 2)
+    {
+        throw std::range_error("Deserializing uint16 requires a 2 byte payload.");
+    }
+
+    if (std::endian::native != std::endian::big)
+    {
+        return (static_cast<uint16_t>(*(begin + 1)) << 8) | 
+            static_cast<uint16_t>(*begin);
+    }
+    else
+    {
+        return (static_cast<uint32_t>(*begin) << 8) | 
+            static_cast<uint32_t>(*(begin + 1));
+    }
+}
+
+uint32_t FtlConnection::DeserializeNetworkUint32(
+    const std::vector<uint8_t>::const_iterator& begin,
+    const std::vector<uint8_t>::const_iterator& end)
+{
+    if ((end - begin) != 4)
     {
         throw std::range_error("Deserializing uint32 requires a 4 byte payload.");
     }
 
     if (std::endian::native != std::endian::big)
     {
-        return (static_cast<uint32_t>(payload.at(3)) << 24) | 
-            (static_cast<uint32_t>(payload.at(2)) << 16) | 
-            (static_cast<uint32_t>(payload.at(1)) << 8) | 
-            static_cast<uint32_t>(payload.at(0));
+        return (static_cast<uint32_t>(*(begin + 3)) << 24) | 
+            (static_cast<uint32_t>(*(begin + 2)) << 16) | 
+            (static_cast<uint32_t>(*(begin + 1)) << 8) | 
+            static_cast<uint32_t>(*begin);
     }
     else
     {
-        return (static_cast<uint32_t>(payload.at(0)) << 24) | 
-            (static_cast<uint32_t>(payload.at(1)) << 16) | 
-            (static_cast<uint32_t>(payload.at(2)) << 8) | 
-            static_cast<uint32_t>(payload.at(3));
+        return (static_cast<uint32_t>(*begin) << 24) | 
+            (static_cast<uint32_t>(*(begin + 1)) << 16) | 
+            (static_cast<uint32_t>(*(begin + 2)) << 8) | 
+            static_cast<uint32_t>(*(begin + 3));
     }
 }
 #pragma endregion
@@ -169,22 +194,32 @@ void FtlConnection::Stop()
     }
 }
 
-void FtlConnection::SendOutro(std::string message)
+void FtlConnection::SendIntro(const ConnectionIntroPayload& payload)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamAvailable(std::shared_ptr<Stream> stream)
+void FtlConnection::SendOutro(const ConnectionOutroPayload& payload)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamRemoved(std::shared_ptr<Stream> stream)
+void FtlConnection::SendNodeState(const ConnectionNodeStatePayload& payload)
 {
     // TODO
 }
 
-void FtlConnection::SendStreamMetadata(std::shared_ptr<Stream> stream)
+void FtlConnection::SendChannelSubscription(const ConnectionSubscriptionPayload& payload)
+{
+    // TODO
+}
+
+void FtlConnection::SendStreamPublish(const ConnectionPublishPayload& payload)
+{
+    // TODO
+}
+
+void FtlConnection::SendStreamRelay(const ConnectionRelayPayload& payload)
 {
     // TODO
 }
@@ -194,43 +229,34 @@ void FtlConnection::SetOnConnectionClosed(std::function<void(void)> onConnection
     this->onConnectionClosed = onConnectionClosed;
 }
 
-void FtlConnection::SetOnIntro(std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro)
+void FtlConnection::SetOnIntro(connection_cb_intro_t onIntro)
 {
     this->onIntro = onIntro;
 }
 
-void FtlConnection::SetOnOutro(std::function<void(std::string)> onOutro)
+void FtlConnection::SetOnOutro(connection_cb_outro_t onOutro)
 {
     this->onOutro = onOutro;
 }
 
-void FtlConnection::SetOnSubscribeChannel(std::function<void(ftl_channel_id_t)> onSubscribeChannel)
+void FtlConnection::SetOnNodeState(connection_cb_nodestate_t onNodeState)
 {
-    this->onSubscribeChannel = onSubscribeChannel;
+    this->onNodeState = onNodeState;
 }
 
-void FtlConnection::SetOnUnsubscribeChannel(
-    std::function<void(ftl_channel_id_t)> onUnsubscribeChannel)
+void FtlConnection::SetOnChannelSubscription(connection_cb_subscription_t onChannelSubscription)
 {
-    this->onUnsubscribeChannel = onUnsubscribeChannel;
+    this->onChannelSubscription = onChannelSubscription;
 }
 
-void FtlConnection::SetOnStreamAvailable(
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable)
+void FtlConnection::SetOnStreamPublish(connection_cb_publishing_t onStreamPublish)
 {
-    this->onStreamAvailable = onStreamAvailable;
+    this->onStreamPublish = onStreamPublish;
 }
 
-void FtlConnection::SetOnStreamRemoved(
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved)
+void FtlConnection::SetOnStreamRelay(connection_cb_relay_t onStreamRelay)
 {
-    this->onStreamRemoved = onStreamRemoved;
-}
-
-void FtlConnection::SetOnStreamMetadata(
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata)
-{
-    this->onStreamMetadata = onStreamMetadata;
+    this->onStreamRelay = onStreamRelay;
 }
 
 std::string FtlConnection::GetHostname()
@@ -304,20 +330,17 @@ void FtlConnection::processMessage(
     case OrchestrationMessageType::Outro:
         processOutroMessage(header, payload);
         break;
-    case OrchestrationMessageType::SubscribeChannel:
-        processSubscribeChannelMessage(header, payload);
+    case OrchestrationMessageType::NodeState:
+        processNodeStateMessage(header, payload);
         break;
-    case OrchestrationMessageType::UnsubscribeChannel:
-        processUnsubscribeChannelMessage(header, payload);
+    case OrchestrationMessageType::ChannelSubscription:
+        processChannelSubscriptionMessage(header, payload);
         break;
-    case OrchestrationMessageType::StreamAvailable:
-        processStreamAvailableMessage(header, payload);
+    case OrchestrationMessageType::StreamPublish:
+        processStreamPublishMessage(header, payload);
         break;
-    case OrchestrationMessageType::StreamRemoved:
-        processStreamRemovedMessage(header, payload);
-        break;
-    case OrchestrationMessageType::StreamMetadata:
-        processStreamMetadataMessage(header, payload);
+    case OrchestrationMessageType::StreamRelay:
+        processStreamRelayMessage(header, payload);
         break;
     default:
         break;
@@ -328,28 +351,64 @@ void FtlConnection::processIntroMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
-    if (payload.size() < 3)
+    if (payload.size() < 6)
     {
         throw std::range_error("Intro payload is too small.");
     }
 
-    // Extract version information and hostname from payload
-    uint8_t versionMajor = payload.at(0);
-    uint8_t versionMinor = payload.at(1);
-    uint8_t revision = payload.at(2);
-    hostname = std::string(payload.begin() + 3, payload.end());
+    // Extract payload data
+    uint16_t regionCodeLength = 
+        DeserializeNetworkUint16((payload.cbegin() + 4), (payload.cbegin() + 6));
+
+    // Make sure the given region code length doesn't cause us to run off the edge of the payload.
+    if ((regionCodeLength + 6ul) > payload.size())
+    {
+        spdlog::error(
+            "FtlConnection: Invalid Intro payload. Region Code of length {} "
+            "bytes @ 6 byte offset runs off the edge of {} byte payload.",
+            regionCodeLength,
+            payload.size());
+
+        // Send an error response
+        OrchestrationMessageHeader responseHeader
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Response,
+            .MessageFailure = true,
+            .MessageType = header.MessageType,
+            .MessageId = header.MessageId,
+            .MessagePayloadLength = 0,
+        };
+        sendMessage(responseHeader, std::vector<uint8_t>());
+        return;
+    }
+
+    ConnectionIntroPayload introPayload
+    {
+        .VersionMajor = payload.at(0),
+        .VersionMinor = payload.at(1),
+        .VersionRevision = payload.at(2),
+        .RelayLayer = payload.at(3),
+        // (bytes 4, 5 are region code length)
+        .RegionCode = 
+            std::string((payload.cbegin() + 6), (payload.cbegin() + 6 + regionCodeLength)),
+        .Hostname = std::string((payload.cbegin() + 6 + regionCodeLength), payload.cend())
+    };
 
     // Indicate that we received an intro
+    ConnectionResult result
+    {
+        .IsSuccess = false
+    };
     if (onIntro)
     {
-        onIntro(versionMajor, versionMinor, revision, hostname);
+        result = onIntro(introPayload);
     }
 
     // Send a response
     OrchestrationMessageHeader responseHeader
     {
         .MessageDirection = OrchestrationMessageDirectionKind::Response,
-        .MessageFailure = false,
+        .MessageFailure = !result.IsSuccess,
         .MessageType = OrchestrationMessageType::Intro,
         .MessageId = header.MessageId,
         .MessagePayloadLength = 0,
@@ -361,13 +420,15 @@ void FtlConnection::processOutroMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
-    // Extract reason from payload (if any)
-    auto outroReason = std::string(payload.begin(), payload.end());
+    ConnectionOutroPayload outroPayload
+    {
+        .DisconnectReason = std::string(payload.begin(), payload.end())
+    };
 
     // Indicate that we received an intro
     if (onOutro)
     {
-        onOutro(outroReason);
+        onOutro(outroPayload);
     }
 
     // Send a response
@@ -382,86 +443,39 @@ void FtlConnection::processOutroMessage(
     sendMessage(responseHeader, std::vector<uint8_t>());
 }
 
-void FtlConnection::processSubscribeChannelMessage(
-    const OrchestrationMessageHeader& header,
-    const std::vector<uint8_t>& payload)
-{
-    if (payload.size() < 4)
-    {
-        throw std::range_error("Subscribe payload is too small.");
-    }
-
-    // Extract channel ID from payload
-    uint32_t channelId = DeserializeNetworkUint32(payload);
-
-    // Indicate that we received a subscribe
-    if (onSubscribeChannel)
-    {
-        onSubscribeChannel(channelId);
-    }
-
-    // Send a response
-    OrchestrationMessageHeader responseHeader
-    {
-        .MessageDirection = OrchestrationMessageDirectionKind::Response,
-        .MessageFailure = false,
-        .MessageType = OrchestrationMessageType::SubscribeChannel,
-        .MessageId = header.MessageId,
-        .MessagePayloadLength = 0,
-    };
-    sendMessage(responseHeader, std::vector<uint8_t>());
-}
-
-void FtlConnection::processUnsubscribeChannelMessage(
-    const OrchestrationMessageHeader& header,
-    const std::vector<uint8_t>& payload)
-{
-    if (payload.size() < 4)
-    {
-        throw std::range_error("Unsubscribe payload is too small.");
-    }
-
-    // Extract channel ID from payload
-    uint32_t channelId = DeserializeNetworkUint32(payload);
-
-    // Indicate that we received a subscribe
-    if (onUnsubscribeChannel)
-    {
-        onUnsubscribeChannel(channelId);
-    }
-
-    // Send a response
-    OrchestrationMessageHeader responseHeader
-    {
-        .MessageDirection = OrchestrationMessageDirectionKind::Response,
-        .MessageFailure = false,
-        .MessageType = OrchestrationMessageType::UnsubscribeChannel,
-        .MessageId = header.MessageId,
-        .MessagePayloadLength = 0,
-    };
-    sendMessage(responseHeader, std::vector<uint8_t>());
-}
-
-void FtlConnection::processStreamAvailableMessage(
+void FtlConnection::processNodeStateMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
     if (payload.size() < 8)
     {
-        throw std::range_error("Stream available payload is too small.");
+        spdlog::error(
+            "FtlConnection: Invalid Node State payload. Expected 8 bytes, got {}.",
+            payload.size());
+
+        // Send an error response
+        OrchestrationMessageHeader responseHeader
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Response,
+            .MessageFailure = true,
+            .MessageType = header.MessageType,
+            .MessageId = header.MessageId,
+            .MessagePayloadLength = 0,
+        };
+        sendMessage(responseHeader, std::vector<uint8_t>());
+        return;
     }
-
-    // Extract data from payload
-    uint32_t channelId = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin(), payload.begin() + 4));
-    uint32_t streamId = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin() + 4, payload.begin() + 8));
-    std::string hostname = std::string(payload.begin() + 8, payload.end());
-
-    // Indicate that we received a subscribe
-    if (onStreamAvailable)
+    
+    ConnectionNodeStatePayload nodeStatePayload
     {
-        onStreamAvailable(channelId, streamId, hostname);
+        .CurrentLoad = DeserializeNetworkUint32(payload.cbegin(), (payload.cbegin() + 4)),
+        .MaximumLoad = DeserializeNetworkUint32((payload.cbegin() + 4), (payload.cbegin() + 8)),
+    };
+
+    // Indicate that we received a node state update
+    if (onNodeState)
+    {
+        onNodeState(nodeStatePayload);
     }
 
     // Send a response
@@ -469,32 +483,40 @@ void FtlConnection::processStreamAvailableMessage(
     {
         .MessageDirection = OrchestrationMessageDirectionKind::Response,
         .MessageFailure = false,
-        .MessageType = OrchestrationMessageType::StreamAvailable,
+        .MessageType = header.MessageType,
         .MessageId = header.MessageId,
         .MessagePayloadLength = 0,
     };
     sendMessage(responseHeader, std::vector<uint8_t>());
 }
 
-void FtlConnection::processStreamRemovedMessage(
+void FtlConnection::processChannelSubscriptionMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
-    if (payload.size() < 8)
+    if (payload.size() < 5)
     {
-        throw std::range_error("Stream removed payload is too small.");
+        throw std::range_error("Subscription payload is too small.");
     }
 
-    // Extract data from payload
-    uint32_t channelId = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin(), payload.begin() + 4));
-    uint32_t streamId = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin() + 4, payload.begin() + 8));
+    // TODO: We should be using std::byte everywhere...
+    std::vector<std::byte> streamKey;
+    streamKey.reserve(payload.size() - 5);
+    for (auto it = (payload.begin() + 5); it != payload.end(); ++it)
+    {
+        streamKey.push_back(static_cast<std::byte>(*it));
+    }
+    ConnectionSubscriptionPayload subPayload
+    {
+        .IsSubscribe = (payload.at(0) == 1),
+        .ChannelId = DeserializeNetworkUint32((payload.cbegin() + 1), (payload.cbegin() + 5)),
+        .StreamKey = streamKey,
+    };
 
     // Indicate that we received a subscribe
-    if (onStreamRemoved)
+    if (onChannelSubscription)
     {
-        onStreamRemoved(channelId, streamId);
+        onChannelSubscription(subPayload);
     }
 
     // Send a response
@@ -502,34 +524,33 @@ void FtlConnection::processStreamRemovedMessage(
     {
         .MessageDirection = OrchestrationMessageDirectionKind::Response,
         .MessageFailure = false,
-        .MessageType = OrchestrationMessageType::StreamRemoved,
+        .MessageType = OrchestrationMessageType::ChannelSubscription,
         .MessageId = header.MessageId,
         .MessagePayloadLength = 0,
     };
     sendMessage(responseHeader, std::vector<uint8_t>());
 }
 
-void FtlConnection::processStreamMetadataMessage(
+void FtlConnection::processStreamPublishMessage(
     const OrchestrationMessageHeader& header,
     const std::vector<uint8_t>& payload)
 {
-    if (payload.size() < 12)
+    if (payload.size() < 9)
     {
-        throw std::range_error("Stream metadata payload is too small.");
+        throw std::range_error("Stream publish payload is too small.");
     }
 
-    // Extract data from payload
-    uint32_t channelId = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin(), payload.begin() + 4));
-    uint32_t streamId = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin() + 4, payload.begin() + 8));
-    uint32_t viewers = DeserializeNetworkUint32(
-        std::vector<uint8_t>(payload.begin() + 8, payload.begin() + 12));
+    ConnectionPublishPayload publishPayload
+    {
+        .IsPublish = (payload.at(0) == 1),
+        .ChannelId = DeserializeNetworkUint32((payload.cbegin() + 1), (payload.cbegin() + 5)),
+        .StreamId = DeserializeNetworkUint32((payload.cbegin() + 5), (payload.cbegin() + 9)),
+    };
 
     // Indicate that we received a subscribe
-    if (onStreamMetadata)
+    if (onStreamPublish)
     {
-        onStreamMetadata(channelId, streamId, viewers);
+        onStreamPublish(publishPayload);
     }
 
     // Send a response
@@ -537,7 +558,79 @@ void FtlConnection::processStreamMetadataMessage(
     {
         .MessageDirection = OrchestrationMessageDirectionKind::Response,
         .MessageFailure = false,
-        .MessageType = OrchestrationMessageType::StreamMetadata,
+        .MessageType = OrchestrationMessageType::StreamPublish,
+        .MessageId = header.MessageId,
+        .MessagePayloadLength = 0,
+    };
+    sendMessage(responseHeader, std::vector<uint8_t>());
+}
+
+void FtlConnection::processStreamRelayMessage(
+    const OrchestrationMessageHeader& header,
+    const std::vector<uint8_t>& payload)
+{
+    if (payload.size() < 11)
+    {
+        throw std::range_error("Stream relay payload is too small.");
+    }
+
+    // Extract some data needed to build the payload
+    uint16_t hostnameLength = 
+        DeserializeNetworkUint16((payload.cbegin() + 9), (payload.cbegin() + 11));
+
+    // Make sure the given hostname length doesn't cause us to run off the edge of the payload.
+    if ((hostnameLength + 11ul) > payload.size())
+    {
+        spdlog::error(
+            "FtlConnection: Invalid Stream Relay payload. Hostname of length {} "
+            "bytes @ 11 byte offset runs off the edge of {} byte payload.",
+            hostnameLength,
+            payload.size());
+
+        // Send an error response
+        OrchestrationMessageHeader responseHeader
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Response,
+            .MessageFailure = true,
+            .MessageType = OrchestrationMessageType::StreamRelay,
+            .MessageId = header.MessageId,
+            .MessagePayloadLength = 0,
+        };
+        sendMessage(responseHeader, std::vector<uint8_t>());
+        return;
+    }
+
+    // TODO: Use std::byte everywhere to avoid these annoying casts...
+    std::vector<std::byte> streamKey;
+    streamKey.reserve(payload.size() - 11 - hostnameLength);
+    for (auto it = payload.cbegin() + 11 + hostnameLength; it < payload.cend(); ++it)
+    {
+        streamKey.push_back(static_cast<std::byte>(*it));
+    }
+
+    ConnectionRelayPayload relayPayload
+    {
+        .IsStartRelay = (payload.at(0) == 1),
+        .ChannelId = DeserializeNetworkUint32((payload.cbegin() + 1), (payload.cbegin() + 5)),
+        .StreamId = DeserializeNetworkUint32((payload.cbegin() + 5), (payload.cbegin() + 9)),
+        // (bytes 10 - 11 are the hostname length)
+        .TargetHostname = 
+            std::string((payload.cbegin() + 11), (payload.cbegin() + 11 + hostnameLength)),
+        .StreamKey = streamKey,
+    };
+
+    // Indicate that we received a relay
+    if (onStreamRelay)
+    {
+        onStreamRelay(relayPayload);
+    }
+
+    // Send a response
+    OrchestrationMessageHeader responseHeader
+    {
+        .MessageDirection = OrchestrationMessageDirectionKind::Response,
+        .MessageFailure = false,
+        .MessageType = OrchestrationMessageType::StreamRelay,
         .MessageId = header.MessageId,
         .MessagePayloadLength = 0,
     };

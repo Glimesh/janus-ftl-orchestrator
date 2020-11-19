@@ -16,20 +16,9 @@ class IConnection;
 /**
  * @brief Describes an FTL stream
  */
-class Stream
+struct Stream
 {
-public:
-    /* Constructor/Destructor */
-    Stream(std::shared_ptr<IConnection> ingestConnection, ftl_channel_id_t channelId, ftl_stream_id_t streamId);
-
-    /* Getters/Setters */
-    std::shared_ptr<IConnection> GetIngestConnection();
-    ftl_channel_id_t GetChannelId();
-    ftl_stream_id_t GetStreamId();
-
-private:
-    /* Private members */
-    const std::shared_ptr<IConnection> ingestConnection;
-    const ftl_channel_id_t channelId;
-    const ftl_stream_id_t streamId;
+    std::shared_ptr<IConnection> IngestConnection;
+    ftl_channel_id_t ChannelId;
+    ftl_stream_id_t StreamId;
 };

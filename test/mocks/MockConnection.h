@@ -11,6 +11,8 @@
 
 #include <functional>
 #include <string>
+#include <tuple>
+#include <vector>
 
 class MockConnection : public IConnection
 {
@@ -20,41 +22,102 @@ public:
         hostname(hostname)
     { }
 
+    // Mock destructor
+    ~MockConnection() override
+    {
+        if (onDestructed)
+        {
+            onDestructed();
+        }
+    }
+
     // Mock utilities
+    bool IsStreamAvailable(ftl_channel_id_t channelId)
+    {
+        for (const auto& stream : availableStreams)
+        {
+            if (stream.ChannelId == channelId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool IsStreamAvailable(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+    {
+        for (const auto& stream : availableStreams)
+        {
+            if ((stream.ChannelId == channelId) && (stream.StreamId == streamId))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void MockFireOnConnectionClosed()
     {
         onConnectionClosed();
     }
 
-    void MockFireOnStreamAvailable(
-        ftl_channel_id_t channelId,
-        ftl_stream_id_t streamId,
-        std::string hostname)
+    void MockFireOnIntro(ConnectionIntroPayload payload)
     {
-        if (onStreamAvailable)
+        if (onIntro)
         {
-            onStreamAvailable(channelId, streamId, hostname);
+            onIntro(payload);
         }
     }
 
-    void MockFireOnStreamRemoved(ftl_channel_id_t channelId, ftl_stream_id_t streamId)
+    void MockFireOnOutro(ConnectionOutroPayload payload)
     {
-        if (onStreamRemoved)
+        if (onOutro)
         {
-            onStreamRemoved(channelId, streamId);
+            onOutro(payload);
         }
     }
 
-    void SetMockOnSendStreamAvailable(
-        std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamAvailable)
+    void MockFireOnNodeState(ConnectionNodeStatePayload payload)
     {
-        this->mockOnSendStreamAvailable = mockOnSendStreamAvailable;
+        if (onNodeState)
+        {
+            onNodeState(payload);
+        }
     }
 
-    void SetMockOnSendStreamRemoved(
-        std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamRemoved)
+    void MockFireOnChannelSubscription(ConnectionSubscriptionPayload payload)
     {
-        this->mockOnSendStreamRemoved = mockOnSendStreamRemoved;
+        if (onChannelSubscription)
+        {
+            onChannelSubscription(payload);
+        }
+    }
+
+    void MockFireOnStreamPublish(ConnectionPublishPayload payload)
+    {
+        if (onStreamPublish)
+        {
+            onStreamPublish(payload);
+        }
+    }
+
+    void MockFireOnStreamRelay(ConnectionRelayPayload payload)
+    {
+        if (onStreamRelay)
+        {
+            onStreamRelay(payload);
+        }
+    }
+
+    void SetMockOnDestructed(std::function<void(void)> onDestructed)
+    {
+        this->onDestructed = onDestructed;
+    }
+
+    void SetMockOnSendStreamPublish(
+        std::function<void(ConnectionPublishPayload)> mockOnSendStreamPublish)
+    {
+        this->mockOnSendStreamPublish = mockOnSendStreamPublish;
     }
 
     // IConnection
@@ -64,28 +127,61 @@ public:
     void Stop() override
     { }
 
-    void SendOutro(std::string message) override
-    { }
-
-    void SendStreamAvailable(std::shared_ptr<Stream> stream) override
+    void SendIntro(const ConnectionIntroPayload& payload) override
     {
-        if (mockOnSendStreamAvailable)
+        // TODO
+    }
+
+    void SendOutro(const ConnectionOutroPayload& payload) override
+    { 
+        // TODO
+    }
+
+    void SendNodeState(const ConnectionNodeStatePayload& payload) override
+    {
+        // TODO
+    }
+
+    void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) override
+    {
+        // TODO
+    }
+
+    void SendStreamPublish(const ConnectionPublishPayload& payload) override
+    {
+        if (payload.IsPublish)
         {
-            mockOnSendStreamAvailable(stream);
+            Stream newStream
+            {
+                .ChannelId = payload.ChannelId,
+                .StreamId = payload.StreamId,
+            };
+            availableStreams.push_back(newStream);
+        }
+        else
+        {
+            availableStreams.erase(
+            std::remove_if(
+                availableStreams.begin(),
+                availableStreams.end(),
+                [&payload](auto availableStream)
+                {
+                    return (
+                        (availableStream.ChannelId == payload.ChannelId) && 
+                        (availableStream.StreamId == payload.StreamId));
+                }),
+            availableStreams.end());
+        }
+
+        if (mockOnSendStreamPublish)
+        {
+            mockOnSendStreamPublish(payload);
         }
     }
 
-    void SendStreamRemoved(std::shared_ptr<Stream> stream) override
+    void SendStreamRelay(const ConnectionRelayPayload& payload) override
     {
-        if (mockOnSendStreamRemoved)
-        {
-            mockOnSendStreamRemoved(stream);
-        }
-    }
-
-    void SendStreamMetadata(std::shared_ptr<Stream> stream) override
-    {
-
+        // TODO
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -93,44 +189,34 @@ public:
         this->onConnectionClosed = onConnectionClosed;
     }
 
-    void SetOnIntro(std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro) override
+    void SetOnIntro(connection_cb_intro_t onIntro) override
     {
-        
+        this->onIntro = onIntro;
     }
 
-    void SetOnOutro(std::function<void(std::string)> onOutro)
+    void SetOnOutro(connection_cb_outro_t onOutro)
     {
-
+        this->onOutro = onOutro;
     }
 
-    void SetOnSubscribeChannel(std::function<void(ftl_channel_id_t)> onSubscribeChannel) override
+    void SetOnNodeState(connection_cb_nodestate_t onNodeState) override
     {
-
+        this->onNodeState = onNodeState;
     }
 
-    void SetOnUnsubscribeChannel(
-        std::function<void(ftl_channel_id_t)> onUnsubscribeChannel) override
+    void SetOnChannelSubscription(connection_cb_subscription_t onChannelSubscription) override
     {
-        
+        this->onChannelSubscription = onChannelSubscription;
     }
 
-    void SetOnStreamAvailable(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable) override
+    void SetOnStreamPublish(connection_cb_publishing_t onStreamPublish) override
     {
-        this->onStreamAvailable = onStreamAvailable;
+        this->onStreamPublish = onStreamPublish;
     }
 
-    void SetOnStreamRemoved(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved) override
+    void SetOnStreamRelay(connection_cb_relay_t onStreamRelay) override
     {
-        this->onStreamRemoved = onStreamRemoved;
-    }
-
-    void SetOnStreamMetadata(
-        std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)>
-        onStreamMetadata) override
-    {
-        this->onStreamMetadata = onStreamMetadata;
+        this->onStreamRelay = onStreamRelay;
     }
 
     std::string GetHostname() override
@@ -140,15 +226,18 @@ public:
 
 private:
     std::function<void(void)> onConnectionClosed;
-    std::function<void(uint8_t, uint8_t, uint8_t, std::string)> onIntro;
-    std::function<void(ftl_channel_id_t)> onSubscribeChannel;
-    std::function<void(ftl_channel_id_t)> onUnsubscribeChannel;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, std::string)> onStreamAvailable;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t)> onStreamRemoved;
-    std::function<void(ftl_channel_id_t, ftl_stream_id_t, uint32_t)> onStreamMetadata;
+    connection_cb_intro_t onIntro;
+    connection_cb_outro_t onOutro;
+    connection_cb_nodestate_t onNodeState;
+    connection_cb_subscription_t onChannelSubscription;
+    connection_cb_publishing_t onStreamPublish;
+    connection_cb_relay_t onStreamRelay;
     std::string hostname;
 
     // Mock callbacks
-    std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamAvailable;
-    std::function<void(std::shared_ptr<Stream>)> mockOnSendStreamRemoved;
+    std::function<void(void)> onDestructed;
+    std::function<void(ConnectionPublishPayload)> mockOnSendStreamPublish;
+
+    // Mock data
+    std::vector<Stream> availableStreams;
 };

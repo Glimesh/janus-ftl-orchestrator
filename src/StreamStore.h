@@ -8,10 +8,13 @@
 #pragma once
 
 #include "FtlTypes.h"
+#include "IConnection.h"
 
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <list>
 
 class Stream;
 
@@ -23,30 +26,38 @@ class StreamStore
 public:
     /* Public methods */
     /**
-     * @brief Adds stream to the store.
-     * NOTE: It is expected that callers verify there is no duplicate Stream in the Store already.
+     * @brief
+     *  Adds stream to the store.
+     *  NOTE: It is expected that callers verify there is no duplicate Stream in the Store already.
      * @param stream Stream to add
      */
-    void AddStream(std::shared_ptr<Stream> stream);
+    void AddStream(Stream stream);
 
     /**
      * @brief Removes a stream with the given IDs from the store
-     * 
      * @param channelId channel ID to remove
      * @param streamId stream ID to remove
-     * @return bool true when a stream has been removed, false if no stream has been removed
+     * @return std::optional<Stream> Stream, if it exists
      */
-    bool RemoveStream(ftl_channel_id_t channelId, ftl_stream_id_t streamId);
+    std::optional<Stream> RemoveStream(ftl_channel_id_t channelId, ftl_stream_id_t streamId);
 
     /**
      * @brief Given a channel ID, returns the Stream object associated with this channel
      * @param channelId channel ID of Stream to return
-     * @return std::shared_ptr<Stream> reference to Stream
-     * @return nullptr if Stream could not be found
+     * @return std::optional<Stream> Stream, if it exists
      */
-    std::shared_ptr<Stream> GetStreamByChannelId(ftl_channel_id_t channelId);
+    std::optional<Stream> GetStreamByChannelId(ftl_channel_id_t channelId);
+
+    /**
+     * @brief Remove and return all streams originating from the given connection.
+     * @param connection the connection to find streams for
+     * @return std::optional<std::list<Stream>> list of streams removed, if any
+     */
+    std::optional<std::list<Stream>> RemoveAllConnectionStreams(
+        std::shared_ptr<IConnection> connection);
 
 private:
     std::mutex streamStoreMutex;
-    std::map<ftl_channel_id_t, std::shared_ptr<Stream>> streamByChannelId;
+    std::map<ftl_channel_id_t, Stream> streamByChannelId;
+    std::map<std::shared_ptr<IConnection>, std::list<Stream>> streamsByIngestConnection;
 };

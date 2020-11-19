@@ -20,13 +20,12 @@ enum class OrchestrationMessageDirectionKind
 
 enum class OrchestrationMessageType : uint8_t
 {
-    Intro              = 0,
-    Outro              = 1,
-    SubscribeChannel   = 16,
-    UnsubscribeChannel = 17,
-    StreamAvailable    = 20,
-    StreamRemoved      = 21,
-    StreamMetadata     = 22,
+    Intro               = 0,
+    Outro               = 1,
+    NodeState           = 2,
+    ChannelSubscription = 16,
+    StreamPublish       = 17,
+    StreamRelay         = 20,
 };
 
 struct OrchestrationMessageHeader
