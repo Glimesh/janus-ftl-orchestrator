@@ -48,6 +48,13 @@ public:
      */
     const std::set<std::shared_ptr<TConnection>> GetConnections();
 
+    /**
+     * @brief Get the list of channel subscriptions that exist for a connection
+     * @param connection connection to fetch subscribed channels for
+     * @return std::set<ftl_channel_id_t> set of channels this connection is subscribed to
+     */
+    std::set<ftl_channel_id_t> GetSubscribedChannels(std::shared_ptr<TConnection> connection);
+
 private:
     /* Private members */
     const std::shared_ptr<IConnectionManager<TConnection>> connectionManager;

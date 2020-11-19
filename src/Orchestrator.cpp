@@ -39,6 +39,13 @@ const std::set<std::shared_ptr<TConnection>> Orchestrator<TConnection>::GetConne
 {
     return connections;
 }
+
+template <class TConnection>
+std::set<ftl_channel_id_t> Orchestrator<TConnection>::GetSubscribedChannels(
+    std::shared_ptr<TConnection> connection)
+{
+    return subscriptions.GetSubscribedChannels(connection);
+}
 #pragma endregion
 
 #pragma region Private methods
