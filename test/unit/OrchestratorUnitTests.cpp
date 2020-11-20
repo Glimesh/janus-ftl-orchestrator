@@ -207,7 +207,56 @@ TEST_CASE_METHOD(
 {
     init();
 
-    // TODO
+    ftl_channel_id_t channelIds[] = { 1234, 5678, 2468, 3690 };
+
+    // Connect edge nodes
+    const size_t numEdgeConnections = 3;
+    auto edgeConnections = generateAndConnectMockConnections("edge", numEdgeConnections);
+
+    // Have each node subscribe to all the channels
+    for (const auto& connection : edgeConnections)
+    {
+        for (const auto& channelId : channelIds)
+        {
+            connection->MockFireOnChannelSubscription(
+                {
+                    .IsSubscribe = true,
+                    .ChannelId = channelId,
+                    .StreamKey = std::vector<std::byte>(),
+                });
+        }
+    }
+
+    // Check that all the subscriptions are there
+    for (const auto& connection : edgeConnections)
+    {
+        std::set<ftl_channel_id_t> subs = orchestrator->GetSubscribedChannels(connection);
+        for (const auto& channelId : channelIds)
+        {
+            REQUIRE(subs.contains(channelId));
+        }
+    }
+
+    // Now unsubscribe
+    for (const auto& connection : edgeConnections)
+    {
+        for (const auto& channelId : channelIds)
+        {
+            connection->MockFireOnChannelSubscription(
+                {
+                    .IsSubscribe = false,
+                    .ChannelId = channelId,
+                    .StreamKey = std::vector<std::byte>(),
+                });
+        }
+    }
+
+    // Make sure the subscriptions are gone
+    for (const auto& connection : edgeConnections)
+    {
+        std::set<ftl_channel_id_t> subs = orchestrator->GetSubscribedChannels(connection);
+        REQUIRE(subs.size() == 0);
+    }
 }
 
 TEST_CASE_METHOD(
