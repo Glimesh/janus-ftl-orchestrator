@@ -11,14 +11,13 @@
 
 #include <memory>
 
-class IConnection;
-
 /**
  * @brief Describes an FTL stream
  */
+template <class TConnection>
 struct Stream
 {
-    std::shared_ptr<IConnection> IngestConnection;
+    std::shared_ptr<TConnection> IngestConnection;
     ftl_channel_id_t ChannelId;
     ftl_stream_id_t StreamId;
 };

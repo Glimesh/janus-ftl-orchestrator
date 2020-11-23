@@ -44,11 +44,51 @@ template <class TConnection>
 std::set<ftl_channel_id_t> Orchestrator<TConnection>::GetSubscribedChannels(
     std::shared_ptr<TConnection> connection)
 {
-    return subscriptions.GetSubscribedChannels(connection);
+    std::set<ftl_channel_id_t> returnVal;
+    for (const auto& sub : subscriptions.GetSubscriptions(connection))
+    {
+        returnVal.insert(sub.ChannelId);
+    }
+    return returnVal;
 }
 #pragma endregion
 
 #pragma region Private methods
+template <class TConnection>
+void Orchestrator<TConnection>::openRoute(
+    Stream<TConnection> stream,
+    std::shared_ptr<TConnection> edgeConnection,
+    std::vector<std::byte> streamKey)
+{
+    // TODO: Handle relays, generate real routes.
+    // for now, we just tell the ingest to start relaying directly to the edge node.
+    stream.IngestConnection->SendStreamRelay(ConnectionRelayPayload
+        {
+            .IsStartRelay = true,
+            .ChannelId = stream.ChannelId,
+            .StreamId = stream.StreamId,
+            .TargetHostname = edgeConnection->GetHostname(),
+            .StreamKey = streamKey,
+        });
+}
+
+template <class TConnection>
+void Orchestrator<TConnection>::closeRoute(
+    Stream<TConnection> stream,
+    std::shared_ptr<TConnection> edgeConnection)
+{
+    // TODO: Handle relays, generate real routes.
+    // for now, we just tell the ingest to stop relaying directly to the edge node.
+    stream.IngestConnection->SendStreamRelay(ConnectionRelayPayload
+        {
+            .IsStartRelay = false,
+            .ChannelId = stream.ChannelId,
+            .StreamId = stream.StreamId,
+            .TargetHostname = edgeConnection->GetHostname(),
+            .StreamKey = std::vector<std::byte>(),
+        });
+}
+
 template <class TConnection>
 void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> connection)
 {
@@ -109,25 +149,20 @@ void Orchestrator<TConnection>::connectionClosed(std::weak_ptr<TConnection> conn
     if (auto strongConnection = connection.lock())
     {
         spdlog::info("Connection closed to {}", strongConnection->GetHostname());
-        // Remove all streams associated with this connection
-        if (auto streams = streamStore.RemoveAllConnectionStreams(strongConnection))
+
+        // First, clear any active routes to this connection
+        for (const auto& sub : subscriptions.GetSubscriptions(strongConnection))
         {
-            // Tell subscribers for these channels that the streams have been removed
-            for (const auto& stream : streams.value())
+            if (auto stream = streamStore.GetStreamByChannelId(sub.ChannelId))
             {
-                std::set<std::shared_ptr<IConnection>> subConnections = 
-                    subscriptions.GetSubscribedConnections(stream.ChannelId);
-                for (const auto& subConnection : subConnections)
-                {
-                    subConnection->SendStreamPublish(
-                        {
-                            .IsPublish = false,
-                            .ChannelId = stream.ChannelId,
-                            .StreamId = stream.StreamId,
-                        });
-                }
+                closeRoute(stream.value(), strongConnection);
             }
         }
+
+        // Remove all streams associated with this connection
+        streamStore.RemoveAllConnectionStreams(strongConnection);
+        // Remove all subscriptions associated with this connetion
+        subscriptions.ClearSubscriptions(strongConnection);
 
         std::lock_guard<std::mutex> lock(connectionsMutex);
         pendingConnections.erase(strongConnection);
@@ -217,13 +252,23 @@ ConnectionResult Orchestrator<TConnection>::connectionChannelSubscription(
                 payload.ChannelId);
 
             // Add the subscription
-            // TODO: store stream key
-            bool addResult = subscriptions.AddSubscription(strongConnection, payload.ChannelId);
+            bool addResult = subscriptions.AddSubscription(
+                strongConnection,
+                payload.ChannelId,
+                payload.StreamKey);
+            if (!addResult)
+            {
+                return ConnectionResult
+                {
+                    .IsSuccess = false
+                };
+            }
 
             // Check if this stream is already active
             if (auto stream = streamStore.GetStreamByChannelId(payload.ChannelId))
             {
-                // TODO: Relay strategy
+                // Establish a route to this edge node
+                openRoute(stream.value(), strongConnection, payload.StreamKey);
             }
 
             return ConnectionResult
@@ -238,7 +283,12 @@ ConnectionResult Orchestrator<TConnection>::connectionChannelSubscription(
                 strongConnection->GetHostname(),
                 payload.ChannelId);
 
-            // TODO: Halt existing relays
+            // Check if this stream is currently active
+            if (auto stream = streamStore.GetStreamByChannelId(payload.ChannelId))
+            {
+                // Close any existing route
+                closeRoute(stream.value(), strongConnection);
+            }
 
             // Remove the subscription
             bool removeResult = 
@@ -278,7 +328,13 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
             };
             streamStore.AddStream(newStream);
 
-            // TODO: Relay strategy
+            // Start opening relays to any subscribed connections
+            std::vector<ChannelSubscription<TConnection>> channelSubs = 
+                subscriptions.GetSubscriptions(payload.ChannelId);
+            for (const auto& subscription : channelSubs)
+            {
+                openRoute(newStream, subscription.SubscribedConnection, subscription.StreamKey);
+            }
 
             return ConnectionResult
             {
@@ -296,8 +352,6 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
             // Attempt to remove it if it exists
             if (auto removedStream = streamStore.RemoveStream(payload.ChannelId, payload.StreamId))
             {
-                // TODO: Relay strategy
-
                 return ConnectionResult
                 {
                     .IsSuccess = true

@@ -5,8 +5,6 @@ sources = files([
     'src/FtlConnection.cpp',
     'src/main.cpp',
     'src/Orchestrator.cpp',
-    'src/StreamStore.cpp',
-    'src/SubscriptionStore.cpp',
     'src/TlsConnectionManager.cpp',
     'src/TlsConnectionTransport.cpp',
 ])
@@ -37,8 +35,6 @@ testsources = files([
     # Project sources
     'src/FtlConnection.cpp',
     'src/Orchestrator.cpp',
-    'src/StreamStore.cpp',
-    'src/SubscriptionStore.cpp',
 ])
 
 executable(

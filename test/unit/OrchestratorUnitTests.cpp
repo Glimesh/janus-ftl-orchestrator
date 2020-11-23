@@ -261,13 +261,18 @@ TEST_CASE_METHOD(
 
 TEST_CASE_METHOD(
     OrchestratorUnitTestsFixture,
-    "Orchestrator sends stream notifications to subscribed connections",
+    "Orchestrator relays streams from Ingest nodes to Edge nodes when there are no Relay nodes",
     "[orchestrator]")
 {
     init();
 
     ftl_channel_id_t channelId = 1234;
     ftl_stream_id_t streamId = 5678;
+    std::vector<std::byte> streamKey = 
+        {
+            std::byte{0x00}, std::byte{0x01}, std::byte{0x02}, std::byte{0x03},
+            std::byte{0x04}, std::byte{0x05}, std::byte{0x06}, std::byte{0x07},
+        };
 
     // Connect the edge nodes and have them subscribe to updates for this channel
     const size_t numEdgeConnections = 3;
@@ -280,12 +285,22 @@ TEST_CASE_METHOD(
             {
                 .IsSubscribe = true,
                 .ChannelId = channelId,
-                .StreamKey = std::vector<std::byte>(),
+                .StreamKey = streamKey,
             });
     }
 
     // Connect the ingest and have it report the stream
     auto ingest = generateAndConnectMockConnection("ingest");
+    std::vector<ConnectionRelayPayload> recvRelayPayloads;
+    ingest->SetOnStreamRelay(
+        [&recvRelayPayloads](ConnectionRelayPayload payload)
+        {
+            recvRelayPayloads.push_back(payload);
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
+        });
     ingest->MockFireOnStreamPublish(
         {
             .IsPublish = true,
@@ -293,51 +308,48 @@ TEST_CASE_METHOD(
             .StreamId = streamId,
         });
 
-    // TODO: At this point, we'd expect the ingest to receive a relay message, instructing it to
-    // relay the stream to the edge nodes.
+    // Ensure the ingest has been instructed to relay the stream to all of the subscribing edges
+    for (const auto& connection : edgeConnections)
+    {
+        bool connectionWasRelayedTo = std::any_of(
+            recvRelayPayloads.begin(),
+            recvRelayPayloads.end(),
+            [&connection, &channelId, &streamId, &streamKey](ConnectionRelayPayload payload)
+            {
+                return (payload.IsStartRelay) &&
+                    (payload.TargetHostname == connection->GetHostname()) &&
+                    (payload.ChannelId == channelId) &&
+                    (payload.StreamId == streamId) && 
+                    (payload.StreamKey == streamKey);
+            });
+        REQUIRE(connectionWasRelayedTo == true);
+    }
+    recvRelayPayloads.clear();
 
-    // Have ingest report the stream has been removed
-    ingest->MockFireOnStreamPublish(
+    // Unsubscribe the first edge node and make sure the ingest is instructed to stop relaying
+    const auto& unSubEdge = edgeConnections.at(0);
+    unSubEdge->MockFireOnChannelSubscription(
         {
-            .IsPublish = false,
-            .ChannelId = channelId,
-            .StreamId = streamId,
-        });
-
-    // TODO: At this point, we'd expect any relays in the route to be instructed to stop relaying
-    // the stream.
-}
-
-TEST_CASE_METHOD(
-    OrchestratorUnitTestsFixture,
-    "Orchestrator sends notifications for existing streams to new subscribers",
-    "[orchestrator]")
-{
-    init();
-
-    ftl_channel_id_t channelId = 1234;
-    ftl_stream_id_t streamId = 5678;
-
-    // Connect the ingest, and have it indicate that the stream is available.
-    auto ingest = generateAndConnectMockConnection("ingest");
-    ingest->MockFireOnStreamPublish(
-        {
-            .IsPublish = true,
-            .ChannelId = channelId,
-            .StreamId = streamId,
-        });
-
-    // Connect the edge, subscribe to the stream
-    auto edge = generateAndConnectMockConnection("edge");
-    edge->MockFireOnChannelSubscription(
-        {
-            .IsSubscribe = true,
+            .IsSubscribe = false,
             .ChannelId = channelId,
             .StreamKey = std::vector<std::byte>(),
         });
+    REQUIRE(recvRelayPayloads.size() == 1);
+    const auto& unSubPayload = recvRelayPayloads.at(0);
+    REQUIRE(unSubPayload.TargetHostname == unSubEdge->GetHostname());
+    REQUIRE(unSubPayload.IsStartRelay == false);
+    REQUIRE(unSubPayload.ChannelId == channelId);
+    recvRelayPayloads.clear();
 
-    // TODO: At this point, we'd expect the ingest to receive a relay message, instructing it to
-    // relay the stream to the edge nodes.
+    // Disconnect the second edge node and make sure the ingest is instructed to stop relaying
+    const auto& disconnectEdge = edgeConnections.at(1);
+    disconnectEdge->MockFireOnConnectionClosed();
+    REQUIRE(recvRelayPayloads.size() == 1);
+    const auto& disconnectPayload = recvRelayPayloads.at(0);
+    REQUIRE(disconnectPayload.TargetHostname == disconnectEdge->GetHostname());
+    REQUIRE(disconnectPayload.IsStartRelay == false);
+    REQUIRE(disconnectPayload.ChannelId == channelId);
+    recvRelayPayloads.clear();
 }
 
 // TODO: Test cases to cover orchestrator/routing logic
