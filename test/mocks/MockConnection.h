@@ -129,29 +129,41 @@ public:
 
     void SendIntro(const ConnectionIntroPayload& payload) override
     {
-        // TODO
+        if (onIntro)
+        {
+            onIntro(payload);
+        }
     }
 
     void SendOutro(const ConnectionOutroPayload& payload) override
     { 
-        // TODO
+        if (onOutro)
+        {
+            onOutro(payload);
+        }
     }
 
     void SendNodeState(const ConnectionNodeStatePayload& payload) override
     {
-        // TODO
+        if (onNodeState)
+        {
+            onNodeState(payload);
+        }
     }
 
     void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) override
     {
-        // TODO
+        if (onChannelSubscription)
+        {
+            onChannelSubscription(payload);
+        }
     }
 
     void SendStreamPublish(const ConnectionPublishPayload& payload) override
     {
         if (payload.IsPublish)
         {
-            Stream newStream
+            Stream<MockConnection> newStream
             {
                 .ChannelId = payload.ChannelId,
                 .StreamId = payload.StreamId,
@@ -181,7 +193,10 @@ public:
 
     void SendStreamRelay(const ConnectionRelayPayload& payload) override
     {
-        // TODO
+        if (onStreamRelay)
+        {
+            onStreamRelay(payload);
+        }
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -239,5 +254,5 @@ private:
     std::function<void(ConnectionPublishPayload)> mockOnSendStreamPublish;
 
     // Mock data
-    std::vector<Stream> availableStreams;
+    std::vector<Stream<MockConnection>> availableStreams;
 };

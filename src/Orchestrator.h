@@ -58,14 +58,19 @@ public:
 private:
     /* Private members */
     const std::shared_ptr<IConnectionManager<TConnection>> connectionManager;
-    StreamStore streamStore;
+    StreamStore<TConnection> streamStore;
     std::mutex connectionsMutex;
     std::set<std::shared_ptr<TConnection>> pendingConnections;
     std::set<std::shared_ptr<TConnection>> connections;
     std::mutex streamsMutex;
-    SubscriptionStore subscriptions;
+    SubscriptionStore<TConnection> subscriptions;
 
     /* Private methods */
+    void openRoute(
+        Stream<TConnection> stream,
+        std::shared_ptr<TConnection> edgeConnection,
+        std::vector<std::byte> streamKey);
+    void closeRoute(Stream<TConnection> stream, std::shared_ptr<TConnection> edgeConnection);
     /* ConnectionManager callback handlers */
     void newConnection(std::shared_ptr<TConnection> connection);
     /* Connection callback handlers */
