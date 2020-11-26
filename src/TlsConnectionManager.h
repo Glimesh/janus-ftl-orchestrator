@@ -16,7 +16,7 @@
 #include <vector>
 
 /**
- * @brief Class responsible for accepting new TlsConnections
+ * @brief Class responsible for creating a TLS Server and accepting new TlsConnections
  */
 template <class TConnection>
 class TlsConnectionManager : public IConnectionManager<TConnection>
@@ -24,7 +24,7 @@ class TlsConnectionManager : public IConnectionManager<TConnection>
 public:
     /* Constructor/Destructor */
     TlsConnectionManager(
-        std::vector<uint8_t> preSharedKey,
+        std::vector<std::byte> preSharedKey,
         in_port_t listenPort = DEFAULT_LISTEN_PORT);
 
     /* IConnectionManager */
@@ -36,7 +36,7 @@ public:
 private:
     static constexpr in_port_t DEFAULT_LISTEN_PORT = 8085;
     static constexpr int SOCKET_LISTEN_QUEUE_LIMIT = 64;
-    const std::vector<uint8_t> preSharedKey;
+    const std::vector<std::byte> preSharedKey;
     const in_port_t listenPort;
     int listenSocketHandle;
     std::function<void(std::shared_ptr<TConnection>)> onNewConnection;

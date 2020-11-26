@@ -19,7 +19,7 @@
 #pragma region Constructor/Destructor
 template <class T>
 TlsConnectionManager<T>::TlsConnectionManager(
-    std::vector<uint8_t> preSharedKey,
+    std::vector<std::byte> preSharedKey,
     in_port_t listenPort
 ) :
     preSharedKey(preSharedKey),
@@ -104,7 +104,11 @@ void TlsConnectionManager<T>::Listen()
         spdlog::info("Accepted new connection...");
 
         std::shared_ptr<TlsConnectionTransport> transport = 
-            std::make_shared<TlsConnectionTransport>(clientHandle, acceptedAddr, preSharedKey);
+            std::make_shared<TlsConnectionTransport>(
+                true /*isServer*/,
+                clientHandle,
+                acceptedAddr,
+                preSharedKey);
 
         std::shared_ptr<T> connection = std::make_shared<T>(transport);
 

@@ -18,12 +18,12 @@ public:
     void Load();
 
     /* Configuration values */
-    std::vector<uint8_t> GetPreSharedKey();
+    std::vector<std::byte> GetPreSharedKey();
 
 private:
     /* Backing stores */
-    std::vector<uint8_t> preSharedKey;
+    std::vector<std::byte> preSharedKey;
 
     /* Private methods */
-    std::vector<uint8_t> hexStringToByteArray(std::string hexString);
+    std::vector<std::byte> hexStringToByteArray(std::string hexString);
 };

@@ -15,10 +15,10 @@ void Configuration::Load()
 {
     // Set default pre-shared key
     preSharedKey = {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-        0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+        std::byte(0x00), std::byte(0x01), std::byte(0x02), std::byte(0x03),
+        std::byte(0x04), std::byte(0x05), std::byte(0x06), std::byte(0x07),
+        std::byte(0x08), std::byte(0x09), std::byte(0x0a), std::byte(0x0b),
+        std::byte(0x0c), std::byte(0x0d), std::byte(0x0e), std::byte(0x0f),
     };
 
     // FTL_ORCHESTRATOR_PSK -> PreSharedKey
@@ -34,16 +34,16 @@ void Configuration::Load()
     }
 }
 
-std::vector<uint8_t> Configuration::GetPreSharedKey()
+std::vector<std::byte> Configuration::GetPreSharedKey()
 {
     return preSharedKey;
 }
 #pragma endregion
 
 #pragma region Private methods
-std::vector<uint8_t> Configuration::hexStringToByteArray(std::string hexString)
+std::vector<std::byte> Configuration::hexStringToByteArray(std::string hexString)
 {
-    std::vector<uint8_t> retVal;
+    std::vector<std::byte> retVal;
     std::stringstream convertStream;
 
     unsigned int buffer;
@@ -53,7 +53,7 @@ std::vector<uint8_t> Configuration::hexStringToByteArray(std::string hexString)
         convertStream.clear();
         convertStream << std::hex << hexString.substr(offset, 2);
         convertStream >> std::hex >> buffer;
-        retVal.push_back(static_cast<uint8_t>(buffer));
+        retVal.push_back(static_cast<std::byte>(buffer));
         offset += 2;
     }
 
