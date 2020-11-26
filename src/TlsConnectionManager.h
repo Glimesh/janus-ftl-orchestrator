@@ -30,6 +30,7 @@ public:
     /* IConnectionManager */
     void Init() override;
     void Listen() override;
+    void StopListening() override;
     void SetOnNewConnection(
         std::function<void(std::shared_ptr<TConnection>)> onNewConnection) override;
 

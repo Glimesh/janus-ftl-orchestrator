@@ -95,6 +95,12 @@ void TlsConnectionManager<T>::Listen()
         if (clientHandle < 0)
         {
             int error = errno;
+            if (error == EINVAL)
+            {
+                // This means we've closed the listen handle
+                spdlog::info("TLS Connection Manager shutting down...");
+                break;
+            }
             std::stringstream errStr;
             errStr << "Unable to accept incoming connection! Error "
                 << error << ": " << Util::ErrnoToString(error);
@@ -120,9 +126,14 @@ void TlsConnectionManager<T>::Listen()
         {
             spdlog::warn("Accepted a new connection, but nobody was listening. :(");
         }
-
-        connection->Start();
     }
+}
+
+template <class T>
+void TlsConnectionManager<T>::StopListening()
+{
+    shutdown(listenSocketHandle, SHUT_RDWR);
+    close(listenSocketHandle);
 }
 
 template <class T>

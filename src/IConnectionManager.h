@@ -32,6 +32,11 @@ public:
     virtual void Listen() = 0;
 
     /**
+     * @brief Stops listening for incoming connections
+     */
+    virtual void StopListening() = 0;
+
+    /**
      * @brief
      *  Set the callback that will be fired when a new connection has been established
      *  and has received initial identification information.

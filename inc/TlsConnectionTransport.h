@@ -92,26 +92,43 @@ public:
         // Add self-reference to the SSL instance so we can get back from callback functions
         SSL_set_ex_data(ssl.get(), 0, this);
 
-        // Bind SSL to our socket file descriptor and attempt to accept incoming connection
+        // Bind SSL to our socket file descriptor and attempt to accept/connect
         SSL_set_fd(ssl.get(), socketHandle);
-        if (SSL_accept(ssl.get()) <= 0)
+        if (isServer)
         {
-            char sslErrStr[256];
-            unsigned long sslErr = ERR_get_error();
-            ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
-            spdlog::warn("Failure accepting TLS connection: {}", sslErrStr);
-            closeConnection();
+            if (SSL_accept(ssl.get()) <= 0)
+            {
+                char sslErrStr[256];
+                unsigned long sslErr = ERR_get_error();
+                ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
+                spdlog::warn("Failure accepting TLS connection: {}", sslErrStr);
+                closeConnection();
+            }
+            else
+            {
+                spdlog::info("Accepted new TLS connection");
+            }
         }
         else
         {
-            spdlog::info("Accepted new TLS connection");
+            if (SSL_connect(ssl.get()) <= 0)
+            {
+                char sslErrStr[256];
+                unsigned long sslErr = ERR_get_error();
+                ERR_error_string_n(sslErr, sslErrStr, sizeof(sslErrStr));
+                throw std::runtime_error(sslErrStr);
+            }
+            else
+            {
+                spdlog::info("Connected to TLS server");
+            }
         }
+        
     }
 
     void Stop() override
     {
-        shutdown(socketHandle, SHUT_RDWR);
-        close(socketHandle);
+        SSL_shutdown(ssl.get());
     }
 
     std::vector<uint8_t> Read() override

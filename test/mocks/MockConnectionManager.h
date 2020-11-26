@@ -33,6 +33,9 @@ public:
     void Listen() override
     { }
 
+    void StopListening() override
+    { }
+
     void SetOnNewConnection(std::function<void(std::shared_ptr<TConnection>)> onNewConnection)
     {
         this->onNewConnection = onNewConnection;

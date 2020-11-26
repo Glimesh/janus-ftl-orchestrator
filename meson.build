@@ -32,8 +32,11 @@ testsources = files([
     # Unit tests
     'test/unit/FtlConnectionUnitTests.cpp',
     'test/unit/OrchestratorUnitTests.cpp',
+    # Functional tests
+    'test/functional/FunctionalTests.cpp',
     # Project sources
     'src/Orchestrator.cpp',
+    'src/TlsConnectionManager.cpp',
 ])
 
 executable(

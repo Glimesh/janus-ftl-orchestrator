@@ -47,7 +47,7 @@ public:
         }
         else
         {
-            return std::optional<std::vector<uint8_t>>();
+            return std::nullopt;
         }
     }
 
