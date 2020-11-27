@@ -96,9 +96,10 @@ public:
     std::optional<Stream<TConnection>> GetStreamByChannelId(ftl_channel_id_t channelId)
     {
         std::lock_guard<std::mutex> lock(streamStoreMutex);
-        if (streamByChannelId.count(channelId) > 0)
+        auto it = streamByChannelId.find(channelId);
+        if (it != streamByChannelId.end())
         {
-            return streamByChannelId[channelId];
+            return it->second;
         }
         return std::nullopt;
     }

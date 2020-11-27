@@ -47,7 +47,7 @@ std::set<ftl_channel_id_t> Orchestrator<TConnection>::GetSubscribedChannels(
     std::set<ftl_channel_id_t> returnVal;
     for (const auto& sub : subscriptions.GetSubscriptions(connection))
     {
-        returnVal.insert(sub.ChannelId);
+        returnVal.insert(sub->ChannelId);
     }
     return returnVal;
 }
@@ -153,7 +153,7 @@ void Orchestrator<TConnection>::connectionClosed(std::weak_ptr<TConnection> conn
         // First, clear any active routes to this connection
         for (const auto& sub : subscriptions.GetSubscriptions(strongConnection))
         {
-            if (auto stream = streamStore.GetStreamByChannelId(sub.ChannelId))
+            if (auto stream = streamStore.GetStreamByChannelId(sub->ChannelId))
             {
                 closeRoute(stream.value(), strongConnection);
             }
@@ -329,11 +329,9 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
             streamStore.AddStream(newStream);
 
             // Start opening relays to any subscribed connections
-            std::vector<ChannelSubscription<TConnection>> channelSubs = 
-                subscriptions.GetSubscriptions(payload.ChannelId);
-            for (const auto& subscription : channelSubs)
+            for (const auto& subscription : subscriptions.GetSubscriptions(payload.ChannelId))
             {
-                openRoute(newStream, subscription.SubscribedConnection, subscription.StreamKey);
+                openRoute(newStream, subscription->SubscribedConnection, subscription->StreamKey);
             }
 
             return ConnectionResult

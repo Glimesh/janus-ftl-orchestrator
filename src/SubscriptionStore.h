@@ -72,7 +72,7 @@ public:
      * @param channelId channel ID to remove subscription for
      * @return bool true if the subscription was successfully found and removed
      */
-    bool RemoveSubscription(std::shared_ptr<TConnection> connection, ftl_channel_id_t channelId)
+    bool RemoveSubscription(const std::shared_ptr<TConnection>& connection, const ftl_channel_id_t& channelId)
     {
         std::lock_guard<std::mutex> lock(subscriptionsStoreMutex);
         bool success = true;
@@ -154,39 +154,33 @@ public:
     /**
      * @brief Get the list of channel subscriptions that exist for a connection
      * @param connection connection to fetch subscribed channels for
-     * @return std::set<ftl_channel_id_t> set of channels this connection is subscribed to
+     * @return set of channels this connection is subscribed to
      */
-    std::vector<ChannelSubscription<TConnection>> GetSubscriptions(std::shared_ptr<TConnection> connection)
+    std::set<std::shared_ptr<ChannelSubscription<TConnection>>> GetSubscriptions(const std::shared_ptr<TConnection>& connection)
     {
-        std::vector<ChannelSubscription<TConnection>> returnVal;
         std::lock_guard<std::mutex> lock(subscriptionsStoreMutex);
-        if (subscriptionsByConnection.contains(connection))
+        auto it = subscriptionsByConnection.find(connection);
+        if (it != subscriptionsByConnection.end())
         {
-            for (const auto& subscription : subscriptionsByConnection[connection])
-            {
-                returnVal.push_back(*subscription);
-            }
+            return it->second;
         }
-        return returnVal;
+        return {};
     }
 
     /**
      * @brief Get the list of subscriptions to a given channel
      * @param channelId channel to fetch subscriptions for
-     * @return std::vector<ChannelSubscription> list of subscriptions for the given channel
+     * @return subscriptions for the given channelId
      */
-    std::vector<ChannelSubscription<TConnection>> GetSubscriptions(ftl_channel_id_t channelId)
+    std::set<std::shared_ptr<ChannelSubscription<TConnection>>> GetSubscriptions(const ftl_channel_id_t& channelId)
     {
-        std::vector<ChannelSubscription<TConnection>> returnVal;
         std::lock_guard<std::mutex> lock(subscriptionsStoreMutex);
-        if (subscriptionsByChannel.contains(channelId))
+        auto it = subscriptionsByChannel.find(channelId);
+        if (it != subscriptionsByChannel.end())
         {
-            for (const auto& subscription : subscriptionsByChannel[channelId])
-            {
-                returnVal.push_back(*subscription);
-            }
+            return it->second;
         }
-        return returnVal;
+        return {};
     }
 
     /**
