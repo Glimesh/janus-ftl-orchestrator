@@ -38,7 +38,7 @@ void TlsConnectionManager<T>::Init()
 }
 
 template <class T>
-void TlsConnectionManager<T>::Listen()
+void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
 {
     sockaddr_in listenAddr
     {
@@ -83,6 +83,7 @@ void TlsConnectionManager<T>::Listen()
 
     // Accept new connections
     spdlog::info("Listening on port {}...", listenPort);
+    readyPromise.set_value(); // Indicate to promise that we are now listening
     while (true)
     {
         sockaddr_in acceptedAddr { 0 };

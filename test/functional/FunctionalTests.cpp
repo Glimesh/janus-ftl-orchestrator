@@ -66,12 +66,15 @@ public:
      */
     void StartConnectionManagerListening()
     {
+        std::promise<void> listeningPromise;
+        std::future<void> listeningFuture = listeningPromise.get_future();
         connectionManagerListenThread = std::thread(
-            [this]()
+            [this, &listeningPromise]()
             {
-                this->connectionManager->Listen();
+                this->connectionManager->Listen(std::move(listeningPromise));
             });
         connectionManagerListenThread.detach();
+        listeningFuture.get();
     }
 
     /**
@@ -118,21 +121,16 @@ TEST_CASE_METHOD(
 {
     InitConnectionManager();
     StartConnectionManagerListening();
-
-    // TODO: need to wait for server to be ready for new connections
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Now connect a client
     std::shared_ptr<FtlConnection> clientConnection = 
         FtlOrchestrationClient::Connect("127.0.0.1", preSharedKey);
-    auto clientThread = std::thread(
-        [&clientConnection]()
-        {
-            clientConnection->Start();
-        });
-    clientThread.detach();
+    // We need to connect the client in a separate thread so we can accept the connection
+    // in this thread without deadlocking.
+    std::future<void> clientConnectedFuture = 
+        std::async(std::launch::async, &FtlConnection::Start, clientConnection.get());
 
-    // Make sure the client successfully connected
+    // Make sure the server successfully received the connection
     auto receivedConnection = WaitForNewConnection();
     REQUIRE(receivedConnection.has_value());
     if (receivedConnection)
@@ -140,11 +138,13 @@ TEST_CASE_METHOD(
         receivedConnection.value()->Start();
     }
 
-    if (clientThread.joinable())
-    {
-        clientThread.join();
-    }
+    // Make sure our client finished connecting
+    clientConnectedFuture.get();
 
     // Shut down the client
     clientConnection->Stop();
+    if (receivedConnection)
+    {
+        receivedConnection.value()->Stop();
+    }
 }

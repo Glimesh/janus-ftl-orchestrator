@@ -30,7 +30,7 @@ public:
     void Init() override
     { }
 
-    void Listen() override
+    void Listen(std::promise<void>&& readyPromise = std::promise<void>()) override
     { }
 
     void StopListening() override
