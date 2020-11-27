@@ -47,3 +47,10 @@ executable(
     dependencies: deps,
     cpp_args: cppargs
 )
+
+executable(
+    'janus-ftl-orchestrator-test-client',
+    files(['src/test-client.cpp']),
+    dependencies: deps,
+    cpp_args: cppargs
+)
