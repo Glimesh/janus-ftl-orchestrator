@@ -15,6 +15,7 @@
 #include <atomic>
 #include <bit>
 #include <functional>
+#include <future>
 #include <memory>
 #include <optional>
 #include <spdlog/spdlog.h>
@@ -229,6 +230,7 @@ public:
         transport->Start();
 
         // Spin up the thread that will listen to data coming from our transport
+        connectionThreadEndedFuture = connectionThreadEndedPromise.get_future();
         connectionThread = std::thread(&FtlConnection::startConnectionThread, this);
         connectionThread.detach();
     }
@@ -237,10 +239,7 @@ public:
     {
         // Stop the transport, which should halt our connection thread.
         transport->Stop();
-        if (connectionThread.joinable())
-        {
-            connectionThread.join();
-        }
+        connectionThreadEndedFuture.get(); // Wait until our connection thread end has ended
     }
 
     void SendIntro(const ConnectionIntroPayload& payload) override
@@ -316,6 +315,8 @@ public:
 private:
     std::shared_ptr<IConnectionTransport> transport;
     std::atomic<bool> isStopping { 0 };
+    std::promise<void> connectionThreadEndedPromise;
+    std::future<void> connectionThreadEndedFuture;
     std::thread connectionThread;
     std::function<void(void)> onConnectionClosed;
     connection_cb_intro_t onIntro;
@@ -377,6 +378,12 @@ private:
                 messageHeader.reset();
             }
         }
+
+        if (onConnectionClosed)
+        {
+            onConnectionClosed();
+        }
+        connectionThreadEndedPromise.set_value_at_thread_exit();
     }
 
     /**

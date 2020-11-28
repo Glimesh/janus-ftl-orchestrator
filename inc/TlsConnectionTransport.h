@@ -16,6 +16,7 @@
 #include <atomic>
 #include <filesystem>
 #include <functional>
+#include <mutex>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <string>
@@ -128,11 +129,22 @@ public:
 
     void Stop() override
     {
-        SSL_shutdown(ssl.get());
+        if (!isStopping && !isStopped)
+        {
+            isStopping = true;
+            SSL_shutdown(ssl.get());
+            shutdown(socketHandle, SHUT_RDWR);
+            close(socketHandle);
+        }
     }
 
     std::vector<uint8_t> Read() override
     {
+        if (isStopped)
+        {
+            return std::vector<uint8_t>();
+        }
+
         // Try to read some bytes
         char buffer[512];
         int bytesRead = SSL_read(ssl.get(), buffer, sizeof(buffer));
@@ -172,7 +184,10 @@ public:
 
     void Write(const std::vector<uint8_t>& bytes) override
     {
-        SSL_write(ssl.get(), bytes.data(), bytes.size());
+        if (!isStopping && !isStopped)
+        {
+            SSL_write(ssl.get(), bytes.data(), bytes.size());
+        }
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -186,6 +201,8 @@ private:
     const int socketHandle;
     sockaddr_in targetAddress;
     const std::vector<std::byte> preSharedKey;
+    std::atomic<bool> isStopping { false }; // Indicates when SSL has been signaled to shut down
+    std::atomic<bool> isStopped { false }; // Indicates when the socket has been closed
     SslPtr ssl;
     SSL_psk_find_session_cb_func sslPskCallbackFunc;
     std::function<void(void)> onConnectionClosed;
@@ -232,11 +249,22 @@ private:
      */
     void closeConnection()
     {
-        shutdown(socketHandle, SHUT_RDWR);
-        close(socketHandle);
-        if (onConnectionClosed)
+        // Avoid closing the socket twice (in case we were the ones who closed it)
+        if (!isStopping)
         {
-            onConnectionClosed();
+            isStopping = true;
+            shutdown(socketHandle, SHUT_RDWR);
+            close(socketHandle);
+        }
+
+        // Avoid firing the closed callback twice
+        if (!isStopped)
+        {
+            isStopped = true;
+            if (onConnectionClosed)
+            {
+                onConnectionClosed();
+            }
         }
     }
 

@@ -40,10 +40,7 @@ public:
         if (connectionManager)
         {
             connectionManager->StopListening();
-            if (connectionManagerListenThread.joinable())
-            {
-                connectionManagerListenThread.join();
-            }
+            connectionManagerListenThread.join();
         }
     }
 
@@ -73,7 +70,6 @@ public:
             {
                 this->connectionManager->Listen(std::move(listeningPromise));
             });
-        connectionManagerListenThread.detach();
         listeningFuture.get();
     }
 
@@ -125,7 +121,8 @@ TEST_CASE_METHOD(
     // Now connect a client
     std::shared_ptr<FtlConnection> clientConnection = 
         FtlOrchestrationClient::Connect("127.0.0.1", preSharedKey);
-    // We need to connect the client in a separate thread so we can accept the connection
+
+    // We need to start the client in a separate thread so we can accept the connection
     // in this thread without deadlocking.
     std::future<void> clientConnectedFuture = 
         std::async(std::launch::async, &FtlConnection::Start, clientConnection.get());
@@ -133,18 +130,25 @@ TEST_CASE_METHOD(
     // Make sure the server successfully received the connection
     auto receivedConnection = WaitForNewConnection();
     REQUIRE(receivedConnection.has_value());
-    if (receivedConnection)
-    {
-        receivedConnection.value()->Start();
-    }
+
+    // Record when we see the received connection disconnect
+    std::promise<void> receivedConnClosedPromise;
+    std::future<void> receivedConnClosedFuture = receivedConnClosedPromise.get_future();
+    receivedConnection.value()->SetOnConnectionClosed(
+        [&receivedConnClosedPromise]()
+        {
+            receivedConnClosedPromise.set_value_at_thread_exit();
+        });
+
+    // Start the received connection
+    receivedConnection.value()->Start();
 
     // Make sure our client finished connecting
     clientConnectedFuture.get();
 
     // Shut down the client
     clientConnection->Stop();
-    if (receivedConnection)
-    {
-        receivedConnection.value()->Stop();
-    }
+
+    // Wait for the received connection to close
+    receivedConnClosedFuture.get();
 }
