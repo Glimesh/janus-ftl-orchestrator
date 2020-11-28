@@ -10,8 +10,8 @@ sources = files([
 deps = [
     dependency('libssl'),
     dependency('libcrypto'),
-    dependency('spdlog'),
     dependency('catch2', fallback: ['catch2', 'catch2_dep']),
+    subproject('spdlog').get_variable('spdlog_dep'), # use wrapped copy of spdlog
 ]
 
 cppargs = ['-std=c++20', '-Wno-unknown-pragmas']
