@@ -13,6 +13,7 @@ deps = [
     dependency('libssl'),
     dependency('libcrypto'),
     dependency('spdlog'),
+    dependency('catch2', fallback: ['catch2', 'catch2_dep']),
 ]
 
 cppargs = ['-std=c++20', '-Wno-unknown-pragmas']

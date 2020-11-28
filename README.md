@@ -17,17 +17,6 @@ These are available in Ubuntu's package repos:
 - `libspdlog-dev`
 - `openssl`
 
-### Installing Catch2
-
-Catch2, sadly, is not available in Ubuntu's default repositories.
-
-```sh
-git clone https://github.com/catchorg/Catch2.git
-cd Catch2
-cmake -Bbuild -H. -DBUILD_TESTING=OFF
-sudo cmake --build build/ --target install
-```
-
 # Building
 
 ```sh
