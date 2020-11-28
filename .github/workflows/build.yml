@@ -50,4 +50,4 @@ jobs:
           name: janus-ftl-orchestrator
 
       - name: Run Tests
-        run: ./janus-ftl-orchestrator-test
+        run: chmod +x janus-ftl-orchestrator-test && ./janus-ftl-orchestrator-test
