@@ -14,7 +14,6 @@ Please see [PROTOCOL.md](/docs/PROTOCOL.md)
 
 These are available in Ubuntu's package repos:
 
-- `libspdlog-dev`
 - `openssl`
 
 # Building
