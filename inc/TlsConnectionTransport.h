@@ -40,7 +40,7 @@ public:
      * @param isServer true if this is a server connection, false if this is a client connection
      * @param socketHandle the handle to the socket connection for this connection
      * @param targetAddress the address that this connection is communicating with
-     * @param preSharedKeyHexStr pre-shared key in hex format (00-FF) for TLS PSK encryption
+     * @param preSharedKey pre-shared key for TLS PSK encryption
      */
     TlsConnectionTransport(
         bool isServer,
