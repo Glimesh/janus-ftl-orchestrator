@@ -2,11 +2,9 @@ project('janus-ftl-orchestrator', 'cpp')
 
 sources = files([
     'src/Configuration.cpp',
-    'src/FtlConnection.cpp',
     'src/main.cpp',
     'src/Orchestrator.cpp',
     'src/TlsConnectionManager.cpp',
-    'src/TlsConnectionTransport.cpp',
 ])
 
 deps = [
@@ -17,10 +15,12 @@ deps = [
 ]
 
 cppargs = ['-std=c++20', '-Wno-unknown-pragmas']
+incdir = include_directories(['src', 'inc'])
 
 executable(
     'janus-ftl-orchestrator',
     sources,
+    include_directories: incdir,
     dependencies: deps,
     cpp_args: cppargs,
     install: true,
@@ -33,14 +33,17 @@ testsources = files([
     # Unit tests
     'test/unit/FtlConnectionUnitTests.cpp',
     'test/unit/OrchestratorUnitTests.cpp',
+    # Functional tests
+    'test/functional/FunctionalTests.cpp',
     # Project sources
-    'src/FtlConnection.cpp',
     'src/Orchestrator.cpp',
+    'src/TlsConnectionManager.cpp',
 ])
 
 executable(
     'janus-ftl-orchestrator-test',
     testsources,
+    include_directories: incdir,
     dependencies: deps,
     cpp_args: cppargs
 )

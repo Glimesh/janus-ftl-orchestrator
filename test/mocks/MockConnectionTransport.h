@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "../../src/IConnectionTransport.h"
+#include <IConnectionTransport.h>
 
 #include <chrono>
 #include <condition_variable>
@@ -47,7 +47,7 @@ public:
         }
         else
         {
-            return std::optional<std::vector<uint8_t>>();
+            return std::nullopt;
         }
     }
 

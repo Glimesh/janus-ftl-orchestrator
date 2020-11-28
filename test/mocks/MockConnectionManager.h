@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "../../src/IConnectionManager.h"
-#include "../../src/IConnection.h"
+#include <IConnection.h>
+#include <IConnectionManager.h>
 
 #include <functional>
 #include <memory>
@@ -30,7 +30,10 @@ public:
     void Init() override
     { }
 
-    void Listen() override
+    void Listen(std::promise<void>&& readyPromise = std::promise<void>()) override
+    { }
+
+    void StopListening() override
     { }
 
     void SetOnNewConnection(std::function<void(std::shared_ptr<TConnection>)> onNewConnection)

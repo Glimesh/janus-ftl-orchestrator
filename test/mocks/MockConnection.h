@@ -7,7 +7,10 @@
 
 #pragma once
 
-#include "../../src/IConnection.h"
+#include <FtlTypes.h>
+#include <IConnection.h>
+
+#include "../../src/Stream.h" // TODO: Replace with generic structure
 
 #include <functional>
 #include <string>

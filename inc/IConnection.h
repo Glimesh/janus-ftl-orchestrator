@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include "Stream.h"
-
 #include <cstddef>
 #include <functional>
 #include <string>

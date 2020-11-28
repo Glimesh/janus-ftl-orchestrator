@@ -10,7 +10,9 @@
 #include "IConnectionTransport.h"
 
 #include <functional>
+#include <future>
 #include <memory>
+#include <optional>
 
 /**
  * @brief Describes a class that accepts new IConnections
@@ -28,8 +30,14 @@ public:
 
     /**
      * @brief Starts listening for incoming connections, blocking the current thread
+     * @param readyPromise a promise that is fulfilled as soon as the service is actively listening
      */
-    virtual void Listen() = 0;
+    virtual void Listen(std::promise<void>&& readyPromise = std::promise<void>()) = 0;
+
+    /**
+     * @brief Stops listening for incoming connections
+     */
+    virtual void StopListening() = 0;
 
     /**
      * @brief

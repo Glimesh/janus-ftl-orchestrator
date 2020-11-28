@@ -19,7 +19,7 @@
 #pragma region Constructor/Destructor
 template <class T>
 TlsConnectionManager<T>::TlsConnectionManager(
-    std::vector<uint8_t> preSharedKey,
+    std::vector<std::byte> preSharedKey,
     in_port_t listenPort
 ) :
     preSharedKey(preSharedKey),
@@ -38,7 +38,7 @@ void TlsConnectionManager<T>::Init()
 }
 
 template <class T>
-void TlsConnectionManager<T>::Listen()
+void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
 {
     sockaddr_in listenAddr
     {
@@ -83,6 +83,7 @@ void TlsConnectionManager<T>::Listen()
 
     // Accept new connections
     spdlog::info("Listening on port {}...", listenPort);
+    readyPromise.set_value(); // Indicate to promise that we are now listening
     while (true)
     {
         sockaddr_in acceptedAddr { 0 };
@@ -95,6 +96,12 @@ void TlsConnectionManager<T>::Listen()
         if (clientHandle < 0)
         {
             int error = errno;
+            if (error == EINVAL)
+            {
+                // This means we've closed the listen handle
+                spdlog::info("TLS Connection Manager shutting down...");
+                break;
+            }
             std::stringstream errStr;
             errStr << "Unable to accept incoming connection! Error "
                 << error << ": " << Util::ErrnoToString(error);
@@ -104,7 +111,11 @@ void TlsConnectionManager<T>::Listen()
         spdlog::info("Accepted new connection...");
 
         std::shared_ptr<TlsConnectionTransport> transport = 
-            std::make_shared<TlsConnectionTransport>(clientHandle, acceptedAddr, preSharedKey);
+            std::make_shared<TlsConnectionTransport>(
+                true /*isServer*/,
+                clientHandle,
+                acceptedAddr,
+                preSharedKey);
 
         std::shared_ptr<T> connection = std::make_shared<T>(transport);
 
@@ -116,9 +127,14 @@ void TlsConnectionManager<T>::Listen()
         {
             spdlog::warn("Accepted a new connection, but nobody was listening. :(");
         }
-
-        connection->Start();
     }
+}
+
+template <class T>
+void TlsConnectionManager<T>::StopListening()
+{
+    shutdown(listenSocketHandle, SHUT_RDWR);
+    close(listenSocketHandle);
 }
 
 template <class T>
