@@ -32,6 +32,7 @@ protected:
             // multiple threads.
             // possible workaround: disable this spdlog sink when in multi-threaded test cases?
             //UNSCOPED_INFO(formattedMsg);
+            printf("%s", formattedMsg.c_str());
             break;
         }
         case spdlog::level::warn:
@@ -39,6 +40,7 @@ protected:
             // BUG: Turns out that this makes Catch2 unhappy when called from
             // multiple threads.
             //WARN(formattedMsg);
+            printf("%s", formattedMsg.c_str());
             break;
         }
         case spdlog::level::err:
@@ -47,6 +49,7 @@ protected:
             // BUG: Turns out that this makes Catch2 unhappy when called from
             // multiple threads.
             //FAIL_CHECK(formattedMsg);
+            printf("%s", formattedMsg.c_str());
             break;
         }
         default:

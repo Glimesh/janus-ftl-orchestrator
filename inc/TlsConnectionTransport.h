@@ -169,14 +169,14 @@ public:
                 break;
             default:
                 // We'll consider other errors fatal.
-                spdlog::error("SSL encountered error {}, terminating this connection.", sslError);
+                spdlog::warn("SSL encountered error {}, terminating this connection.", sslError);
                 closeConnection();
                 break;
             }
         }
         else
         {
-            spdlog::info("RECEIVED: {}", std::string(buffer, buffer + bytesRead));
+            spdlog::info("RECEIVED: {} bytes", bytesRead);
             return std::vector<uint8_t>(buffer, buffer + bytesRead);
         }
 
@@ -187,7 +187,16 @@ public:
     {
         if (!isStopping && !isStopped)
         {
-            SSL_write(ssl.get(), bytes.data(), bytes.size());
+            std::lock_guard<std::mutex> lock(writeMutex);
+            int writeResult = SSL_write(ssl.get(), bytes.data(), bytes.size());
+            if (writeResult <= 0)
+            {
+                spdlog::warn("ERROR {} WRITING {} BYTES", writeResult, bytes.size());
+            }
+            else
+            {
+                spdlog::info("WROTE {} BYTES", writeResult);
+            }
         }
     }
 
@@ -207,6 +216,7 @@ private:
     SslPtr ssl;
     SSL_psk_find_session_cb_func sslPskCallbackFunc;
     std::function<void(void)> onConnectionClosed;
+    std::mutex writeMutex;
 
     /* Private static methods */
     /**

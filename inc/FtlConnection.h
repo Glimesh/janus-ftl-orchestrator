@@ -31,7 +31,11 @@ class FtlConnection : public IConnection
 {
 public:
     /* Constructor/Destructor */
-    FtlConnection(std::shared_ptr<IConnectionTransport> transport) : transport(transport)
+    FtlConnection(
+        std::shared_ptr<IConnectionTransport> transport,
+        std::string hostname = std::string()) : 
+        transport(transport),
+        hostname(hostname)
     { }
 
     ~FtlConnection()
@@ -293,27 +297,130 @@ public:
     
     void SendOutro(const ConnectionOutroPayload& payload) override
     {
-        // TODO
+        std::vector<uint8_t> messagePayload(
+            payload.DisconnectReason.begin(),
+            payload.DisconnectReason.end());
+        
+        OrchestrationMessageHeader header
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Request,
+            .MessageFailure = false,
+            .MessageType = OrchestrationMessageType::Outro,
+            .MessageId = nextOutgoingMessageId++,
+            .MessagePayloadLength = static_cast<uint16_t>(messagePayload.size()),
+        };
+
+        sendMessage(header, messagePayload);
     }
 
     void SendNodeState(const ConnectionNodeStatePayload& payload) override
     {
-        // TODO
+        std::vector<uint8_t> messagePayload;
+        messagePayload.reserve(8);
+        auto currentLoad = ConvertToNetworkPayload(payload.CurrentLoad);
+        messagePayload.insert(messagePayload.end(), currentLoad.begin(), currentLoad.end());
+        auto maximumLoad = ConvertToNetworkPayload(payload.MaximumLoad);
+        messagePayload.insert(messagePayload.end(), maximumLoad.begin(), maximumLoad.end());
+
+        OrchestrationMessageHeader header
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Request,
+            .MessageFailure = false,
+            .MessageType = OrchestrationMessageType::NodeState,
+            .MessageId = nextOutgoingMessageId++,
+            .MessagePayloadLength = static_cast<uint16_t>(messagePayload.size()),
+        };
+
+        sendMessage(header, messagePayload);
     }
 
     void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) override
     {
-        // TODO
+        std::vector<uint8_t> messagePayload
+        {
+            static_cast<uint8_t>(payload.IsSubscribe),
+        };
+
+        messagePayload.reserve(5 + payload.StreamKey.size());
+        auto channelIdBytes = ConvertToNetworkPayload(payload.ChannelId);
+        messagePayload.insert(messagePayload.end(), channelIdBytes.begin(), channelIdBytes.end());
+        for (const auto& streamKeyByte : payload.StreamKey)
+        {
+            messagePayload.push_back(static_cast<uint8_t>(streamKeyByte));
+        }
+
+        OrchestrationMessageHeader header
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Request,
+            .MessageFailure = false,
+            .MessageType = OrchestrationMessageType::ChannelSubscription,
+            .MessageId = nextOutgoingMessageId++,
+            .MessagePayloadLength = static_cast<uint16_t>(messagePayload.size()),
+        };
+
+        sendMessage(header, messagePayload);
     }
     
     void SendStreamPublish(const ConnectionPublishPayload& payload) override
     {
-        // TODO
+        std::vector<uint8_t> messagePayload
+        {
+            static_cast<uint8_t>(payload.IsPublish),
+        };
+        messagePayload.reserve(9);
+        auto channelIdBytes = ConvertToNetworkPayload(payload.ChannelId);
+        messagePayload.insert(messagePayload.end(), channelIdBytes.begin(), channelIdBytes.end());
+        auto streamIdBytes = ConvertToNetworkPayload(payload.StreamId);
+        messagePayload.insert(messagePayload.end(), streamIdBytes.begin(), streamIdBytes.end());
+
+        OrchestrationMessageHeader header
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Request,
+            .MessageFailure = false,
+            .MessageType = OrchestrationMessageType::StreamPublish,
+            .MessageId = nextOutgoingMessageId++,
+            .MessagePayloadLength = static_cast<uint16_t>(messagePayload.size()),
+        };
+
+        sendMessage(header, messagePayload);
     }
 
     void SendStreamRelay(const ConnectionRelayPayload& payload) override
     {
-        // TODO
+        std::vector<uint8_t> messagePayload
+        {
+            static_cast<uint8_t>(payload.IsStartRelay),
+        };
+        messagePayload.reserve(11 + payload.TargetHostname.size() + payload.StreamKey.size());
+        auto channelIdBytes = ConvertToNetworkPayload(payload.ChannelId);
+        messagePayload.insert(messagePayload.end(), channelIdBytes.begin(), channelIdBytes.end());
+        auto streamIdBytes = ConvertToNetworkPayload(payload.StreamId);
+        messagePayload.insert(messagePayload.end(), streamIdBytes.begin(), streamIdBytes.end());
+        auto hostnameSizeBytes = ConvertToNetworkPayload(
+            static_cast<uint16_t>(payload.TargetHostname.size()));
+        messagePayload.insert(
+            messagePayload.end(),
+            hostnameSizeBytes.begin(),
+            hostnameSizeBytes.end());
+        messagePayload.insert(
+            messagePayload.end(),
+            payload.TargetHostname.begin(),
+            payload.TargetHostname.end());
+        for (const auto& streamKeyByte : payload.StreamKey)
+        {
+            messagePayload.push_back(static_cast<uint8_t>(streamKeyByte));
+        }
+
+        OrchestrationMessageHeader header
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Request,
+            .MessageFailure = false,
+            .MessageType = OrchestrationMessageType::StreamRelay,
+            .MessageId = nextOutgoingMessageId++,
+            .MessagePayloadLength = static_cast<uint16_t>(messagePayload.size()),
+        };
+
+        sendMessage(header, messagePayload);
     }
 
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
@@ -391,6 +498,7 @@ private:
             }
 
             // Try to read in some data
+            spdlog::info("Attempting to read for {} ...", GetHostname());
             std::vector<uint8_t> readBytes = transport->Read();
             buffer.insert(buffer.end(), readBytes.begin(), readBytes.end());
 

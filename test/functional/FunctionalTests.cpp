@@ -84,7 +84,7 @@ public:
      * @return std::optional<std::shared_ptr<FtlConnection>> the new connection
      */
     std::optional<std::shared_ptr<FtlConnection>> WaitForNewConnection(
-        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000))
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(5000))
     {
         std::unique_lock<std::mutex> lock(connectionManagerMutex);
         connectionManagerConditionVariable.wait_for(lock, timeout);
@@ -114,6 +114,66 @@ public:
     std::future<void> StartClientAsync(std::shared_ptr<FtlConnection> client)
     {
         return std::async(std::launch::async, &FtlConnection::Start, client.get());
+    }
+
+    /**
+     * @brief
+     *  Creates a new FtlConnection client, connects it to the local orchestration service,
+     *  sends an Intro message with the given parameters, and returns both the local and received
+     *  connections
+     * @param clientHostname hostname for the new client
+     * @param clientRegionCode region code for the new client
+     * @return
+     *  std::pair<std::shared_ptr<FtlConnection>, std::shared_ptr<FtlConnection>> 
+     *  first reference is the client connection, second reference is the received connection.
+     */
+    std::pair<std::shared_ptr<FtlConnection>, std::shared_ptr<FtlConnection>>
+        ConnectAndStartNewClient(
+            std::string clientHostname,
+            std::string clientRegionCode = "global")
+    {
+        // Create the client connection, connect it, and get reference to the received connection
+        std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient();
+        std::future<void> clientConnected = StartClientAsync(clientConnection);
+        auto tryRecvConnection = WaitForNewConnection();
+        REQUIRE(tryRecvConnection.has_value());
+        auto recvConnection = tryRecvConnection.value();
+
+        // When we receive an intro payload, store it away and notify our thread
+        std::optional<ConnectionIntroPayload> recvIntroPayload;
+        std::mutex introRecvMutex;
+        std::condition_variable introRecvCv;
+        recvConnection->SetOnIntro(
+            [&introRecvCv, &recvIntroPayload](ConnectionIntroPayload introPayload)
+            {
+                recvIntroPayload = introPayload;
+                introRecvCv.notify_all();
+                return ConnectionResult
+                {
+                    .IsSuccess = true
+                };
+            });
+
+        recvConnection->Start();
+        clientConnected.get();
+
+        // Send the intro and wait to receive it
+        clientConnection->SendIntro(
+            ConnectionIntroPayload
+            {
+                .VersionMajor = 0,
+                .VersionMinor = 0,
+                .VersionRevision = 1,
+                .RelayLayer = 0,
+                .RegionCode = clientHostname,
+                .Hostname = clientRegionCode,
+            });
+        std::unique_lock<std::mutex> lock(introRecvMutex);
+        introRecvCv.wait_for(lock, std::chrono::milliseconds(5000));
+
+        REQUIRE(recvIntroPayload.has_value());
+
+        return { clientConnection, recvConnection };
     }
 
 protected:
@@ -228,9 +288,80 @@ TEST_CASE_METHOD(
 
     // Wait to see if we got the intro...
     std::unique_lock<std::mutex> lock(introRecvMutex);
-    introRecvCv.wait_for(lock, std::chrono::milliseconds(1000));
+    introRecvCv.wait_for(lock, std::chrono::milliseconds(5000));
 
     REQUIRE(recvIntroPayload.has_value());
     bool payloadIsEqual = (recvIntroPayload.value() == introPayload);
     REQUIRE(payloadIsEqual == true);
+}
+
+TEST_CASE_METHOD(
+    FunctionalTestsFixture,
+    "Ingest to Edge relaying",
+    "[functional][relay]")
+{
+    InitConnectionManager();
+    StartConnectionManagerListening();
+
+    ftl_channel_id_t channelId = 1234;
+    ftl_stream_id_t streamId = 5678;
+    std::vector<std::byte> streamKey
+    {
+        std::byte(0x0f), std::byte(0x0e), std::byte(0x0d), std::byte(0x0c),
+        std::byte(0x0b), std::byte(0x0a), std::byte(0x09), std::byte(0x08), 
+        std::byte(0x07), std::byte(0x06), std::byte(0x05), std::byte(0x04), 
+        std::byte(0x03), std::byte(0x02), std::byte(0x01), std::byte(0x00), 
+    };
+
+    // Connect an ingest node
+    auto ingestConnections = ConnectAndStartNewClient("ingest");
+    auto ingestClient = ingestConnections.first;
+    auto ingestRecv = ingestConnections.second;
+
+    // Connect an edge node
+    auto edgeConnections = ConnectAndStartNewClient("edge");
+    auto edgeClient = ingestConnections.first;
+    auto edgeRecv = ingestConnections.second;
+    
+    // Track when the ingest receives a relay message
+    std::optional<ConnectionRelayPayload> recvRelayPayload;
+    std::mutex recvRelayMutex;
+    std::condition_variable recvRelayCv;
+    ingestClient->SetOnStreamRelay(
+        [&recvRelayPayload, &recvRelayCv](ConnectionRelayPayload relayPayload)
+        {
+            recvRelayPayload = relayPayload;
+            recvRelayCv.notify_all();
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
+        });
+
+    // Subscribe the edge node to the channel
+    edgeClient->SendChannelSubscription(
+        ConnectionSubscriptionPayload
+        {
+            .IsSubscribe = true,
+            .ChannelId = channelId,
+            .StreamKey = streamKey,
+        });
+
+    // Publish the stream from the ingest
+    ingestClient->SendStreamPublish(
+        ConnectionPublishPayload
+        {
+            .IsPublish = true,
+            .ChannelId = channelId,
+            .StreamId = streamId,
+        });
+
+    // Check to see if we've received the relay message
+    std::unique_lock<std::mutex> lock(recvRelayMutex);
+    recvRelayCv.wait_for(lock, std::chrono::milliseconds(5000));
+    REQUIRE(recvRelayPayload.has_value());
+    REQUIRE(recvRelayPayload.value().ChannelId == channelId);
+    REQUIRE(recvRelayPayload.value().StreamId == streamId);
+    bool streamKeyMatch = (recvRelayPayload.value().StreamKey == streamKey);
+    REQUIRE(streamKeyMatch == true);
 }
