@@ -58,6 +58,10 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
         throw std::runtime_error(errStr.str());
     }
 
+    // Allow re-use so we don't get hung up trying to rebind
+    int reUseOption = 1;
+    setsockopt(listenSocketHandle, SOL_SOCKET, SO_REUSEADDR, &reUseOption, sizeof(reUseOption));
+
     // Bind socket
     if (bind(
         listenSocketHandle,
@@ -70,6 +74,8 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
             << error << ": " << Util::ErrnoToString(error);
         throw std::runtime_error(errStr.str());
     }
+
+    printf("%d BIND\n", listenSocketHandle); // REMOVE
 
     // Listen on socket
     if (listen(listenSocketHandle, SOCKET_LISTEN_QUEUE_LIMIT) < 0)
@@ -110,6 +116,8 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
 
         spdlog::info("Accepted new connection...");
 
+        printf("%d ACCEPTED\n", clientHandle); // REMOVE
+
         std::shared_ptr<TlsConnectionTransport> transport = 
             std::make_shared<TlsConnectionTransport>(
                 true /*isServer*/,
@@ -135,6 +143,7 @@ void TlsConnectionManager<T>::StopListening()
 {
     shutdown(listenSocketHandle, SHUT_RDWR);
     close(listenSocketHandle);
+    printf("%d CLOSED: Stop listener\n", listenSocketHandle); // REMOVE
 }
 
 template <class T>

@@ -34,6 +34,12 @@ public:
     FtlConnection(std::shared_ptr<IConnectionTransport> transport) : transport(transport)
     { }
 
+    ~FtlConnection()
+    {
+        // If we haven't already stopped, this should handle it.
+        Stop();
+    }
+
     /* Static methods */
     /**
      * @brief Attempts to parse an Orchestration Protocol Message Header out of the given bytes
@@ -237,14 +243,52 @@ public:
 
     void Stop() override
     {
-        // Stop the transport, which should halt our connection thread.
-        transport->Stop();
-        connectionThreadEndedFuture.get(); // Wait until our connection thread end has ended
+        if (!isStopping && !isTransportStopped)
+        {
+            isStopping = true;
+            // Stop the transport, which should halt our connection thread.
+            transport->Stop();
+            connectionThreadEndedFuture.get(); // Wait until our connection thread end has ended
+        }
     }
 
     void SendIntro(const ConnectionIntroPayload& payload) override
     {
-        // TODO
+        // Construct the binary payload
+        std::vector<uint8_t> messagePayload
+        {
+            payload.VersionMajor,
+            payload.VersionMinor,
+            payload.VersionRevision,
+            payload.RelayLayer,
+        };
+        auto regionCodeLength = FtlConnection::ConvertToNetworkPayload(
+            static_cast<uint16_t>(payload.RegionCode.size()));
+        messagePayload.insert(
+            messagePayload.end(),
+            regionCodeLength.begin(),
+            regionCodeLength.end());
+        messagePayload.insert(
+            messagePayload.end(),
+            payload.RegionCode.begin(),
+            payload.RegionCode.end());
+        messagePayload.insert(
+            messagePayload.end(),
+            payload.Hostname.begin(),
+            payload.Hostname.end());
+
+        // Construct the message header
+        OrchestrationMessageHeader header
+        {
+            .MessageDirection = OrchestrationMessageDirectionKind::Request,
+            .MessageFailure = false,
+            .MessageType = OrchestrationMessageType::Intro,
+            .MessageId = nextOutgoingMessageId++,
+            .MessagePayloadLength = static_cast<uint16_t>(messagePayload.size()),
+        };
+
+        // Send it!
+        sendMessage(header, messagePayload);
     }
     
     void SendOutro(const ConnectionOutroPayload& payload) override
@@ -314,7 +358,8 @@ public:
 
 private:
     std::shared_ptr<IConnectionTransport> transport;
-    std::atomic<bool> isStopping { 0 };
+    std::atomic<bool> isStopping { false };
+    std::atomic<bool> isTransportStopped { false };
     std::promise<void> connectionThreadEndedPromise;
     std::future<void> connectionThreadEndedFuture;
     std::thread connectionThread;
@@ -326,6 +371,7 @@ private:
     connection_cb_publishing_t onStreamPublish;
     connection_cb_relay_t onStreamRelay;
     std::string hostname;
+    std::atomic<uint8_t> nextOutgoingMessageId { 0 };
 
     /* Private methods */
     /**
@@ -339,7 +385,7 @@ private:
         std::vector<uint8_t> buffer;
         while (true)
         {
-            if (isStopping)
+            if (isTransportStopped)
             {
                 break;
             }
@@ -391,7 +437,7 @@ private:
      */
     void onTransportConnectionClosed()
     {
-        isStopping = true;
+        isTransportStopped = true;
     }
 
     /**
@@ -403,6 +449,12 @@ private:
         const OrchestrationMessageHeader& header,
         const std::vector<uint8_t>& payload)
     {
+        if (header.MessageDirection == OrchestrationMessageDirectionKind::Response)
+        {
+            // TODO: We don't handle responses yet.
+            return;
+        }
+
         switch (header.MessageType)
         {
         case OrchestrationMessageType::Intro:

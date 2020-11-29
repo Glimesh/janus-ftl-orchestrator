@@ -32,6 +32,17 @@ struct ConnectionIntroPayload
     uint8_t RelayLayer;
     std::string RegionCode;
     std::string Hostname;
+
+    bool operator==(const ConnectionIntroPayload& c)
+    {
+        return (
+            (VersionMajor == c.VersionMajor) &&
+            (VersionMinor == c.VersionMinor) &&
+            (VersionRevision == c.VersionRevision) &&
+            (RelayLayer == c.RelayLayer) &&
+            (RegionCode == c.RegionCode) && 
+            (Hostname == c.Hostname));
+    }
 };
 
 struct ConnectionOutroPayload

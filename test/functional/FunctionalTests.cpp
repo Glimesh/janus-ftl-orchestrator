@@ -37,6 +37,11 @@ public:
 
     ~FunctionalTestsFixture()
     {
+        // Stop all incoming connections
+        for (const auto& connection : connections)
+        {
+            connection->Stop();
+        }
         if (connectionManager)
         {
             connectionManager->StopListening();
@@ -92,6 +97,25 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Prepares a new FtlConnection client to connect to local orchestration service
+     * @return std::shared_ptr<FtlConnection> new client connection
+     */
+    std::shared_ptr<FtlConnection> ConnectNewClient()
+    {
+        return FtlOrchestrationClient::Connect("127.0.0.1", preSharedKey);
+    }
+
+    /**
+     * @brief Starts a given client connection on a new thread
+     * @param client client connection to start
+     * @return std::future<void> future returning a value when the connection has started
+     */
+    std::future<void> StartClientAsync(std::shared_ptr<FtlConnection> client)
+    {
+        return std::async(std::launch::async, &FtlConnection::Start, client.get());
+    }
+
 protected:
     std::vector<std::byte> preSharedKey;
     std::mutex connectionManagerMutex;
@@ -99,11 +123,14 @@ protected:
     std::shared_ptr<TlsConnectionManager<FtlConnection>> connectionManager;
     std::thread connectionManagerListenThread;
     std::list<std::shared_ptr<FtlConnection>> newConnections;
+    std::list<std::shared_ptr<FtlConnection>> connections;
+    std::list<std::shared_ptr<FtlConnection>> clients;
 
     void onNewConnectionManagerConnection(std::shared_ptr<FtlConnection> connection)
     {
         {
             std::lock_guard<std::mutex> lock(connectionManagerMutex);
+            connections.push_back(connection);
             newConnections.push_back(connection);
         }
         connectionManagerConditionVariable.notify_all();
@@ -112,43 +139,98 @@ protected:
 
 TEST_CASE_METHOD(
     FunctionalTestsFixture,
-    "Orchestration client can connect to Orchestration server",
+    "Orchestration client connect and disconnect",
     "[functional]")
 {
     InitConnectionManager();
     StartConnectionManagerListening();
     
     // Now connect a client
-    std::shared_ptr<FtlConnection> clientConnection = 
-        FtlOrchestrationClient::Connect("127.0.0.1", preSharedKey);
+    std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient();
 
     // We need to start the client in a separate thread so we can accept the connection
     // in this thread without deadlocking.
-    std::future<void> clientConnectedFuture = 
-        std::async(std::launch::async, &FtlConnection::Start, clientConnection.get());
+    std::future<void> clientStarted = StartClientAsync(clientConnection);
 
     // Make sure the server successfully received the connection
-    auto receivedConnection = WaitForNewConnection();
-    REQUIRE(receivedConnection.has_value());
+    auto tryReceivedConnection = WaitForNewConnection();
+    REQUIRE(tryReceivedConnection.has_value());
+    auto receivedConnection = tryReceivedConnection.value();
 
     // Record when we see the received connection disconnect
     std::promise<void> receivedConnClosedPromise;
     std::future<void> receivedConnClosedFuture = receivedConnClosedPromise.get_future();
-    receivedConnection.value()->SetOnConnectionClosed(
+    receivedConnection->SetOnConnectionClosed(
         [&receivedConnClosedPromise]()
         {
             receivedConnClosedPromise.set_value_at_thread_exit();
         });
 
     // Start the received connection
-    receivedConnection.value()->Start();
+    receivedConnection->Start();
 
-    // Make sure our client finished connecting
-    clientConnectedFuture.get();
+    // Make sure our client finished starting
+    clientStarted.get();
 
     // Shut down the client
     clientConnection->Stop();
 
     // Wait for the received connection to close
     receivedConnClosedFuture.get();
+}
+
+TEST_CASE_METHOD(
+    FunctionalTestsFixture,
+    "Intro messages sent by the client are received",
+    "[functional]")
+{
+    InitConnectionManager();
+    StartConnectionManagerListening();
+
+    std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient();
+    std::future<void> clientConnected = StartClientAsync(clientConnection);
+    
+    auto tryReceivedConnection = WaitForNewConnection();
+    REQUIRE(tryReceivedConnection.has_value());
+    auto receivedConnection = tryReceivedConnection.value();
+
+    // When we receive an intro payload, store it away and notify our thread
+    std::optional<ConnectionIntroPayload> recvIntroPayload;
+    std::mutex introRecvMutex;
+    std::condition_variable introRecvCv;
+    receivedConnection->SetOnIntro(
+        [&introRecvCv, &recvIntroPayload](ConnectionIntroPayload introPayload) -> ConnectionResult
+        {
+            recvIntroPayload = introPayload;
+            introRecvCv.notify_all();
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
+        });
+
+    // Start received connection and ensure client has started
+    receivedConnection->Start();
+    clientConnected.get();
+
+    // Send an intro from the client
+    ConnectionIntroPayload introPayload
+        {
+            // TODO: Store version info in some common header...
+            .VersionMajor = 0,
+            .VersionMinor = 0,
+            .VersionRevision = 1,
+            .RelayLayer = 0,
+            .RegionCode = "test",
+            .Hostname = "test-host",
+        };
+    clientConnection->SendIntro(introPayload);
+
+    // Wait to see if we got the intro...
+    std::unique_lock<std::mutex> lock(introRecvMutex);
+    introRecvCv.wait_for(lock, std::chrono::milliseconds(1000));
+
+    REQUIRE(recvIntroPayload.has_value());
+    bool payloadIsEqual = (recvIntroPayload.value() == introPayload);
+    REQUIRE(payloadIsEqual == true);
 }

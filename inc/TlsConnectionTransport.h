@@ -135,6 +135,7 @@ public:
             SSL_shutdown(ssl.get());
             shutdown(socketHandle, SHUT_RDWR);
             close(socketHandle);
+            printf("%d CLOSED: Triggered by local\n", socketHandle);
         }
     }
 
@@ -255,6 +256,7 @@ private:
             isStopping = true;
             shutdown(socketHandle, SHUT_RDWR);
             close(socketHandle);
+            printf("%d CLOSED: Triggered by remote\n", socketHandle);
         }
 
         // Avoid firing the closed callback twice

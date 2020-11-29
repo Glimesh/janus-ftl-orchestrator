@@ -61,6 +61,7 @@ public:
         {
             throw std::runtime_error("Could not connect to Orchestration service on given host");
         }
+        printf("%d CONNECT\n", socketHandle);
 
         // Fire up a TlsConnectionTransport to handle TLS on this socket
         std::shared_ptr<TlsConnectionTransport> transport = 
