@@ -28,7 +28,6 @@ class Configuration;
  *  Orchestrator handles listening for and maintaining incoming
  *  orchestration connections
  */
-template <class TConnection>
 class Orchestrator
 {
 public:

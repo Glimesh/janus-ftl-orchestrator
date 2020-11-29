@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package orchestrator;
+
+service FtlOrchestrator {
+  rpc CreateStream (CreateStreamRequest) returns (CreateStreamResponse) {}
+  rpc DeleteStream (DeleteStreamRequest) returns (DeleteStreamResponse) {}
+
+  rpc CreateSubscription (CreateSubscriptionRequest) returns (CreateSubscriptionResponse) {}
+  rpc DeleteSubscription (DeleteSubscriptionRequest) returns (DeleteSubscriptionResponse) {}
+  
+  rpc CreateNode (CreateNodeRequest) returns (CreateNodeResponse) {}
+  rpc DeleteNode (DeleteNodeRequest) returns (DeleteNodeResponse) {}
+  
+  rpc UpdateNodeStatus (UpdateNodeStatusRequest) returns (UpdateNodeStatusResponse) {}
+  
+  rpc RegisterRelay (RegisterRelayRequest) returns (stream RelayUpdate) {}
+}
+
+message CreateStreamRequest {
+  string node_name = 1;
+  uint32 stream_id = 2;
+  uint32 channel_id = 3;
+}
+
+message CreateStreamResponse {}
+
+message DeleteStreamRequest {
+  string node_name = 1;
+  uint32 stream_id = 2;
+}
+
+message DeleteStreamResponse {}
+
+message CreateSubscriptionRequest {
+  string node_name = 1;
+  uint32 channel_id = 2;
+  bytes target_hostname = 3;
+  // Stream key to be used when relaying the channel to this node
+  bytes target_stream_key = 4;
+}
+
+message CreateSubscriptionResponse {}
+
+message DeleteSubscriptionRequest {
+  string node_name = 1;
+  uint32 channel_id = 2;
+}
+
+message DeleteSubscriptionResponse {}
+
+message CreateNodeRequest {
+  string node_name = 1;
+}
+
+message CreateNodeResponse {}
+
+message DeleteNodeRequest {
+  string node_name = 1;
+}
+
+message DeleteNodeResponse {}
+
+message UpdateNodeStatusRequest {
+  string node_name = 1;
+  uint32 current_load = 2;
+  uint32 maximum_load = 3;
+}
+
+message UpdateNodeStatusResponse {}
+
+message RegisterRelayRequest {
+  string node_name = 1;
+}
+
+message RelayUpdate {
+  oneof update {
+    StartRelaying start = 1;
+    StopRelaying stop = 2;
+  }
+  
+  message StartRelaying {
+    uint32 stream_id = 1;
+    uint32 channel_id = 2;
+    string target_hostname = 3;
+    bytes target_stream_key = 4;
+  }
+
+  message StopRelaying {
+    uint32 stream_id = 1;
+    uint32 channel_id = 2;
+    string target_hostname = 3;
+  }
+}

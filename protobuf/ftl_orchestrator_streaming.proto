@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package orchestrator;
+
+message NodeState {
+    uint32 current_load = 1;
+    uint32 maximum_load = 2;
+}
+
+service FtlOrchestrator {
+  rpc Connect (stream In) returns (stream Out) {}
+}
+
+message In {
+  oneof message {
+    Intro intro = 1;
+    Outro outro = 2;
+    NodeStateUpdate node_state_update = 3;
+    Subscribe subscribe = 4;
+    Publish publish = 5;
+  } 
+}
+
+message Out {
+  oneof message {
+    Response response = 1;
+    Relay relay = 2;
+  } 
+}
+
+message Intro {
+  uint32 version_major = 1;
+  uint32 version_minor = 2;
+  uint32 version_revision = 3;
+  uint32 relay_layer = 4;
+  string region_code = 5;
+  string hostname = 6;
+}
+
+message Outro {
+  string disconnect_reason = 1;
+}
+
+message NodeStateUpdate {
+  NodeState node_state = 1;
+}
+
+message Subscribe {
+  bool IsSubscribe = 1;
+  uint32 channel_id = 2;
+  bytes stream_key = 3;
+}
+
+message Publish {
+  bool IsPublish = 1;
+  uint32 channel_id = 2;
+  bytes stream_key = 3;
+}
+
+message Response {
+  bool success = 1;
+}
+
+message Relay {
+  bool IsStartRelay = 1;
+  uint32 channel_id = 2;
+  uint32 stream_id = 3;
+  string target_hostname = 4;
+  bytes StreamKey = 5;
+}
