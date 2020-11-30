@@ -1,18 +1,54 @@
-#pragma once
-
 #include "NodeStore.h"
 
-void Node::CreateStream(ftl_stream_id_t id, ftl_channel_id_t channel_id){}
-void Node::DeleteStream(ftl_stream_id_t id){}
+void Node::CreateStream(ftl_stream_id_t id, ftl_channel_id_t channel_id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    routeChangeSignal.Notify();
+}
 
-void Node::CreateSubscription(ftl_channel_id_t channel_id){}
-void Node::DeleteSubscription(ftl_channel_id_t channel_id){}
+void Node::DeleteStream(ftl_stream_id_t id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    routeChangeSignal.Notify();
+}
 
-void Node::SetStatus(NodeStatus status){}
+void Node::CreateSubscription(ftl_channel_id_t channel_id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+}
+void Node::DeleteSubscription(ftl_channel_id_t channel_id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+}
 
-Signal::Subscription Node::SubscribeToRouteChanges(){}
+void Node::SetStatus(NodeStatus status) {}
 
-void NodeStore::CreateNode(std::string name{}
-Node *NodeStore::GetNode(const std::string &name){}
-std::weak_ptr<Node> NodeStore::GetNodeWeak(const std::string &name){}
-void NodeStore::DeleteNode(std::string name){}
+Signal::Subscription Node::SubscribeToRouteChanges()
+{
+    return routeChangeSignal.Subscribe();
+}
+
+void NodeStore::CreateNode(const std::string &name)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    if (nodes.count(name) > 0)
+    {
+        return;
+    }
+
+    nodes[name] = std::make_unique<Node>(name);
+}
+
+Node *NodeStore::GetNode(const std::string &name)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    auto node = nodes.find(name);
+    if (node != nodes.end())
+    {
+        return node->second.get();
+    }
+
+    return nullptr;
+}
+
+void NodeStore::DeleteNode(std::string name) {}

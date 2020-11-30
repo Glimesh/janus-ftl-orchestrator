@@ -48,6 +48,9 @@ struct NodeStatus
 class Node
 {
 public:
+    Node() {}
+    Node(const std::string &name) : name(name) {}
+
     void CreateStream(ftl_stream_id_t id, ftl_channel_id_t channel_id);
     void DeleteStream(ftl_stream_id_t id);
 
@@ -59,6 +62,7 @@ public:
     Signal::Subscription SubscribeToRouteChanges();
 
 private:
+    std::string name;
     std::mutex mutex;
     std::map<ftl_stream_id_t, Stream> streams;
     std::map<ftl_channel_id_t, Subscription> subscriptions;
@@ -70,11 +74,11 @@ private:
 class NodeStore
 {
 public:
-    void CreateNode(std::string name);
-    Node* GetNode(const std::string &name);
-    std::weak_ptr<Node> GetNodeWeak(const std::string &name);
+    void CreateNode(const std::string &name);
+    Node *GetNode(const std::string &name);
     void DeleteNode(std::string name);
 
 private:
-    std::unordered_map<std::string, Node> nodes;
+    std::unordered_map<std::string, std::unique_ptr<Node>> nodes;
+    std::mutex mutex;
 };
