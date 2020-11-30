@@ -7,9 +7,8 @@
 
 #pragma once
 
-#include "ChannelSubscription.h"
-#include "concurrent_unordered_map.h"
 #include "FtlTypes.h"
+#include "Signal.h"
 
 #include <cstddef>
 #include <map>
@@ -65,6 +64,7 @@ private:
     std::map<ftl_channel_id_t, Subscription> subscriptions;
     std::map<ftl_channel_id_t, Relay> relays;
     NodeStatus status;
+    Signal routeChangeSignal;
 };
 
 class NodeStore
@@ -76,5 +76,5 @@ public:
     void DeleteNode(std::string name);
 
 private:
-    unordered_map<std::string, Node> nodes;
+    std::unordered_map<std::string, Node> nodes;
 };
