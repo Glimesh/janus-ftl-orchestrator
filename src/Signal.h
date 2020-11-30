@@ -11,28 +11,19 @@ class Signal
     class Channel
     {
     public:
-        void Notify()
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            signaled = true;
-            lock.unlock(); // unlock before notify to minimize mutex contention
-            cv.notify_one();
-        }
+        void Notify();
 
-        void Close()
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            closed = true;
-            lock.unlock(); // unlock before notify to minimize mutex contention
-            cv.notify_one();
-        }
+        void Close();
 
         template <class Rep, class Period>
-        std::cv_status WaitFor(const std::chrono::duration<Rep, Period> &rel_time)
+        void WaitFor(const std::chrono::duration<Rep, Period> &rel_time)
         {
             std::unique_lock<std::mutex> lock(mutex);
-            return cv.wait(lock, [] { return signaled; });
+            cv.wait_for(lock, rel_time, [&] { return signaled; });
+            signaled = false;
         }
+
+        bool IsOpen();
 
     private:
         bool closed = false;
@@ -45,47 +36,24 @@ public:
     class Subscription
     {
     public:
-        Subscription();
-        Subscription(std::shared_ptr<Channel> channel);
-        Subscription& operator=(Subscription&&) = default;
+        Subscription() {}
+        Subscription(std::shared_ptr<Channel> channel) : channel(channel) {}
 
         bool IsActive();
 
-        std::cv_status Wait();
-
         template <class Rep, class Period>
-        std::cv_status WaitFor(const std::chrono::duration<Rep, Period> &rel_time);
+        void WaitFor(const std::chrono::duration<Rep, Period> &rel_time)
+        {
+            channel->WaitFor(rel_time);
+        }
 
     private:
-        std::shared_ptr<Channel> channel = std::make_shared<Channel>();
+        std::shared_ptr<Channel> channel;
     };
 
-    void Notify()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        auto iter = channels.begin();
-        while (iter != channels.end())
-        {
-            if (auto subscriber = iter->lock())
-            {
-                subscriber->Notify();
-                ++iter;
-            }
-            else
-            {
-                channels.erase(iter++);
-            }
-        }
-    }
+    void Notify();
 
-    Subscription Subscribe()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        std::shared_ptr<Channel> channel = std::make_shared<Channel>();
-        channels.push_back(std::weak_ptr<Channel>(channel));
-        Subscription subscription(channel);
-        return subscription;
-    }
+    Subscription Subscribe();
 
 private:
     std::list<std::weak_ptr<Channel>> channels;

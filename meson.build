@@ -1,13 +1,10 @@
 project('janus-ftl-orchestrator', 'cpp')
 
 sources = files([
-    # 'src/Configuration.cpp',
+    'src/Configuration.cpp',
     'src/FtlOrchestratorService.cpp',
-    # 'src/FtlConnection.cpp',
-    # 'src/main.cpp',
-    # 'src/Orchestrator.cpp',
-    # 'src/TlsConnectionManager.cpp',
-    # 'src/TlsConnectionTransport.cpp',
+    'src/Signal.cpp',
+    'src/NodeStore.cpp',
 ])
 
 cmake = import('cmake')
@@ -116,7 +113,7 @@ testsources = files([
     'test/functional/FunctionalTests.cpp',
     # Project sources
     'src/Orchestrator.cpp',
-    'src/TlsConnectionManager.cpp',
+    # 'src/TlsConnectionManager.cpp',
 ])
 
 # executable(
