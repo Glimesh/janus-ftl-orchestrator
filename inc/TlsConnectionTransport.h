@@ -19,6 +19,7 @@
 #include <mutex>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <poll.h>
 #include <string>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/bin_to_hex.h>
@@ -58,6 +59,14 @@ public:
     /* IConnectionTransport */
     void Start() override
     {
+        // First, set the socket to non-blocking IO mode
+        int socketFlags = fcntl(socketHandle, F_GETFL, 0);
+        socketFlags = socketFlags | O_NONBLOCK;
+        if (fcntl(socketHandle, F_SETFL, socketFlags) != 0)
+        {
+            throw std::runtime_error("Could not set socket to non-blocking mode.");
+        }
+
         SslCtxPtr sslContext(SSL_CTX_new(isServer ? TLS_server_method() : TLS_client_method()));
 
         // Disable old protocols
@@ -95,6 +104,13 @@ public:
 
         // Bind SSL to our socket file descriptor and attempt to accept/connect
         SSL_set_fd(ssl.get(), socketHandle);
+
+        // Open pipe used for writing to SSL
+        if (pipe2(writePipeFds, O_NONBLOCK) != 0)
+        {
+            throw std::runtime_error("Could not open SSL write pipe!");
+        }
+
         if (isServer)
         {
             if (SSL_accept(ssl.get()) <= 0)
@@ -217,6 +233,7 @@ private:
     SSL_psk_find_session_cb_func sslPskCallbackFunc;
     std::function<void(void)> onConnectionClosed;
     std::mutex writeMutex;
+    int writePipeFds[2]; // Pipe used to write to the SSL socket
 
     /* Private static methods */
     /**
@@ -252,6 +269,116 @@ private:
         TlsConnectionTransport* that = 
             reinterpret_cast<TlsConnectionTransport*>(SSL_get_ex_data(ssl, 0));
         return that->sslPskUseSession(ssl, md, id, idlen, sess);
+    }
+
+    /**
+     * @brief Thread body for processing SSL socket input/output
+     */
+    void connectionThreadBody()
+    {
+        // First, we need to connect.
+        int connectResult = SSL_connect(ssl.get());
+        while (connectResult == -1)
+        {
+            // We're not done connecting yet - figure out what we're waiting on
+            int connectError = SSL_get_error(ssl.get(), connectResult);
+            if (connectError == SSL_ERROR_WANT_READ)
+            {
+                // OpenSSL wants to read, but the socket can't yet, so wait for it.
+                pollfd readPollFd
+                {
+                    .fd = socketHandle,
+                    .events = POLLIN,
+                    .revents = 0,
+                };
+                poll(&readPollFd, 1, 100 /*ms*/);
+            }
+            else if (connectError == SSL_ERROR_WANT_WRITE)
+            {
+                // OpenSSL wants to write, but the socket can't yet, so wait for it.
+                pollfd writePollFd
+                {
+                    .fd = socketHandle,
+                    .events = POLLOUT,
+                    .revents = 0,
+                };
+                poll(&writePollFd, 1, 100 /*ms*/);
+            }
+            else
+            {
+                // Unexpected error - close this connection.
+                closeConnection();
+                return;
+            }
+            
+            // Try again
+            connectResult = SSL_connect(ssl.get());
+        }
+
+        // We're connected. Now wait for input/output.
+        char readBuf[512];
+        while (true)
+        {
+            pollfd pollFds[]
+            {
+                // OpenSSL socket read
+                {
+                    .fd = socketHandle,
+                    .events = POLLIN,
+                    .revents = 0,
+                },
+                // Pending writes
+                {
+                    .fd = writePipeFds[0],
+                    .events = POLLIN,
+                    .revents = 0,
+                },
+            };
+
+            poll(pollFds, 2, 100 /*ms*/);
+
+            // Data available for reading?
+            if (pollFds[0].revents & POLLIN)
+            {
+                while (true)
+                {
+                    int bytesRead = SSL_read(ssl.get(), readBuf, sizeof(readBuf));
+                    int readError = SSL_get_error(ssl.get(), bytesRead);
+                    switch (readError)
+                    {
+                    case SSL_ERROR_NONE:
+                        // Successfully read!
+                        break;
+                    case SSL_ERROR_ZERO_RETURN:
+                        // Connection closed
+                        break;
+                    case SSL_ERROR_WANT_READ:
+                        // Didn't finish reading - try again
+                        continue;
+                        break;
+                    case SSL_ERROR_WANT_WRITE:
+                        // Nothing we can do here
+                        break;
+                    case SSL_ERROR_SYSCALL:
+                    default:
+                        // Some other error - close
+                        break;
+                    }
+
+                    // Check if we're done processing incoming data
+                    if (!SSL_pending(ssl.get()))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // Data available for writing?
+            if (pollFds[1].revents & POLLIN)
+            {
+
+            }
+        }
     }
 
     /* Private methods */
