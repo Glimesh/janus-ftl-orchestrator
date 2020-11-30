@@ -21,6 +21,12 @@ message Relay {
   bytes target_stream_key = 5;
 }
 
+message RoutingTable {
+  repeated Stream streams = 1;
+  repeated Subscription subscriptions = 2;
+  repeated Relay relays = 3;
+}
+
 service FtlOrchestrator {
   rpc CreateStream (CreateStreamRequest) returns (CreateStreamResponse) {}
   rpc DeleteStream (DeleteStreamRequest) returns (DeleteStreamResponse) {}
@@ -34,6 +40,7 @@ service FtlOrchestrator {
   
   rpc UpdateNodeStatus (UpdateNodeStatusRequest) returns (UpdateNodeStatusResponse) {}
   
+  rpc GetRoutes (GetRoutesRequest) returns (GetRoutesResponse) {}
   rpc WatchRoutes (WatchRoutesRequest) returns (stream WatchRoutesResponse) {}
 }
 
@@ -98,12 +105,18 @@ message UpdateNodeStatusRequest {
 
 message UpdateNodeStatusResponse {}
 
+message GetRoutesRequest {
+  string node_name = 1;
+}
+
+message GetRoutesResponse {
+  RoutingTable routes = 1;
+}
+
 message WatchRoutesRequest {
   string node_name = 1;
 }
 
 message WatchRoutesResponse {
-  repeated Stream streams = 1;
-  repeated Subscription subscriptions = 2;
-  repeated Relay relays = 3;
+  RoutingTable routes = 1;
 }

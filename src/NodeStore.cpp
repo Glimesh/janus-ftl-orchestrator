@@ -2,23 +2,29 @@
 
 void Node::CreateStream(ftl_stream_id_t id, ftl_channel_id_t channel_id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    if (streams.count(id) > 0)
+    {
+        return;
+    }
+
+    streams[id] = Stream{
+        .id=id,
+        .channel_id=channel_id,
+    };
     routeChangeSignal.Notify();
 }
 
 void Node::DeleteStream(ftl_stream_id_t id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    streams.erase(id);
     routeChangeSignal.Notify();
 }
 
 void Node::CreateSubscription(ftl_channel_id_t channel_id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
 }
 void Node::DeleteSubscription(ftl_channel_id_t channel_id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
 }
 
 void Node::SetStatus(NodeStatus status) {}

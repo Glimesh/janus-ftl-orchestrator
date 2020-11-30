@@ -64,10 +64,8 @@ public:
 
     Signal::Subscription SubscribeToRouteChanges();
 
-private:
     std::string name;
     std::string hostname;
-    std::mutex mutex;
     std::map<ftl_stream_id_t, Stream> streams;
     std::map<ftl_channel_id_t, Subscription> subscriptions;
     std::map<ftl_channel_id_t, Relay> relays;

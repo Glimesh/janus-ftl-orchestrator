@@ -35,13 +35,16 @@ using orchestrator::CreateSubscriptionRequest;
 using orchestrator::CreateSubscriptionResponse;
 using orchestrator::DeleteNodeRequest;
 using orchestrator::DeleteNodeResponse;
-using orchestrator::GetNodeRequest;
-using orchestrator::GetNodeResponse;
 using orchestrator::DeleteStreamRequest;
 using orchestrator::DeleteStreamResponse;
 using orchestrator::DeleteSubscriptionRequest;
 using orchestrator::DeleteSubscriptionResponse;
 using orchestrator::FtlOrchestrator;
+using orchestrator::GetNodeRequest;
+using orchestrator::GetNodeResponse;
+using orchestrator::GetRoutesRequest;
+using orchestrator::GetRoutesResponse;
+using orchestrator::RoutingTable;
 using orchestrator::UpdateNodeStatusRequest;
 using orchestrator::UpdateNodeStatusResponse;
 using orchestrator::WatchRoutesRequest;
@@ -52,7 +55,7 @@ const Status &NODE_NOT_FOUND = Status(StatusCode::NOT_FOUND, "Node not found");
 class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
 {
 public:
-  FtlOrchestratorServiceImpl(std::unique_ptr<NodeStore> nodeStore): nodeStore(std::move(nodeStore)) {}
+  FtlOrchestratorServiceImpl(std::unique_ptr<NodeStore> nodeStore) : nodeStore(std::move(nodeStore)) {}
 
   Status CreateStream(ServerContext *context, const CreateStreamRequest *request, CreateStreamResponse *response) override
   {
@@ -119,14 +122,15 @@ public:
   Status GetNode(ServerContext *context, const GetNodeRequest *request, GetNodeResponse *response) override
   {
     std::lock_guard<std::mutex> lock(nodeStoreMutex);
-    Node* node = nodeStore->GetNode(request->node_name());
-    if (node == nullptr) {
+    Node *node = nodeStore->GetNode(request->node_name());
+    if (node == nullptr)
+    {
       return NODE_NOT_FOUND;
     }
 
     response->set_node_name(node->Name());
     response->set_hostname(node->Hostname());
-    
+
     return Status::OK;
   }
 
@@ -154,14 +158,30 @@ public:
     return Status::OK;
   }
 
-  Status WatchRoutes(grpc::ServerContext *context,
+  Status GetRoutes(ServerContext *context,
+                   const GetRoutesRequest *request,
+                   GetRoutesResponse *response) override
+  {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
+    Node *node = nodeStore->GetNode(request->node_name());
+    if (node == nullptr)
+    {
+      return NODE_NOT_FOUND;
+    }
+
+    response->set_allocated_routes(BuildRoutingTable(node).release());
+
+    return Status::OK;
+  }
+
+  Status WatchRoutes(ServerContext *context,
                      const WatchRoutesRequest *request,
                      ServerWriter<WatchRoutesResponse> *writer) override
   {
     Signal::Subscription signal;
     {
-      Node *node = nodeStore->GetNode(request->node_name());
       std::lock_guard<std::mutex> lock(nodeStoreMutex);
+      Node *node = nodeStore->GetNode(request->node_name());
       if (node == nullptr)
       {
         return NODE_NOT_FOUND;
@@ -171,10 +191,13 @@ public:
 
     do
     {
-      std::lock_guard<std::mutex> lock(nodeStoreMutex);
-      Node* node = nodeStore->GetNode(request->node_name());
-      WatchRoutesResponse response;
-      writer->Write(response);
+      {
+        std::lock_guard<std::mutex> lock(nodeStoreMutex);
+        Node *node = nodeStore->GetNode(request->node_name());
+        WatchRoutesResponse response;
+        response.set_allocated_routes(BuildRoutingTable(node).release());
+        writer->Write(response);
+      }
       signal.WaitFor(10s);
     } while (signal.IsActive());
 
@@ -182,6 +205,21 @@ public:
   }
 
 private:
+  std::unique_ptr<RoutingTable> BuildRoutingTable(const Node *node)
+  {
+    auto table = std::make_unique<RoutingTable>();
+
+    for (const auto &s : node->streams)
+    {
+      auto stream = s.second;
+      auto add = table->add_streams();
+      add->set_stream_id(stream.id);
+      add->set_channel_id(stream.channel_id);
+    }
+
+    return table;
+  }
+
   std::unique_ptr<NodeStore> nodeStore;
   std::mutex nodeStoreMutex;
 };
