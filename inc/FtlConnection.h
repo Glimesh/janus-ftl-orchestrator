@@ -50,30 +50,34 @@ public:
      * @param bytes bytes to parse
      * @return OrchestrationMessageHeader resulting header information
      */
-    static OrchestrationMessageHeader ParseMessageHeader(const std::vector<uint8_t>& bytes)
+    static OrchestrationMessageHeader ParseMessageHeader(const std::vector<std::byte>& bytes)
     {
         if (bytes.size() < 4)
         {
             throw std::range_error("Attempt to parse message header that is under 4 bytes.");
         }
 
-        uint8_t messageDesc = bytes.at(0);
-        OrchestrationMessageDirectionKind messageDirection = (messageDesc & 0b10000000) == 0 ?
-            OrchestrationMessageDirectionKind::Request : OrchestrationMessageDirectionKind::Response;
-        bool messageIsFailure = ((messageDesc & 0b01000000) != 0);
+        std::byte messageDesc = bytes.at(0);
+        OrchestrationMessageDirectionKind messageDirection = 
+            ((messageDesc & std::byte{0b10000000}) == std::byte{0}) ?
+                OrchestrationMessageDirectionKind::Request : 
+                OrchestrationMessageDirectionKind::Response;
+        bool messageIsFailure = ((messageDesc & std::byte{0b01000000}) != std::byte{0});
         OrchestrationMessageType messageType = 
-            static_cast<OrchestrationMessageType>(messageDesc & 0b00111111);
-        uint8_t messageId = bytes.at(1);
+            static_cast<OrchestrationMessageType>(messageDesc & std::byte{0b00111111});
+        uint8_t messageId = static_cast<uint8_t>(bytes.at(1));
         // Determine if we need to flip things around if the host byte ordering is not the same
         // as network byte ordering (big endian)
         uint16_t payloadLength;
         if (std::endian::native != std::endian::big)
         {
-            payloadLength = (static_cast<uint16_t>(bytes.at(3)) << 8) | bytes.at(2);
+            payloadLength = (static_cast<uint16_t>(bytes.at(3)) << 8) | 
+                static_cast<uint16_t>(bytes.at(2));
         }
         else
         {
-            payloadLength = (static_cast<uint16_t>(bytes.at(2)) << 8) | bytes.at(3);
+            payloadLength = (static_cast<uint16_t>(bytes.at(2)) << 8) | 
+                static_cast<uint16_t>(bytes.at(3));
         }
 
         return OrchestrationMessageHeader
@@ -89,28 +93,28 @@ public:
     /**
      * @brief Serializes an Orchestration Protocol Message Header to a byte array
      * @param header header to serialize
-     * @return std::vector<uint8_t> serialized bytes
+     * @return std::vector<std::byte> serialized bytes
      */
-    static std::vector<uint8_t> SerializeMessageHeader(const OrchestrationMessageHeader& header)
+    static std::vector<std::byte> SerializeMessageHeader(const OrchestrationMessageHeader& header)
     {
-        std::vector<uint8_t> headerBytes;
+        std::vector<std::byte> headerBytes;
         headerBytes.reserve(4);
 
         // Convert header to byte payload
-        uint8_t messageDesc = static_cast<uint8_t>(header.MessageType);
+        std::byte messageDesc = static_cast<std::byte>(header.MessageType);
         if (header.MessageDirection == OrchestrationMessageDirectionKind::Response)
         {
-            messageDesc = (messageDesc | 0b10000000);
+            messageDesc = (messageDesc | std::byte{0b10000000});
         }
         if (header.MessageFailure)
         {
-            messageDesc = (messageDesc | 0b01000000);
+            messageDesc = (messageDesc | std::byte{0b01000000});
         }
         headerBytes.emplace_back(messageDesc);
-        headerBytes.emplace_back(header.MessageId);
+        headerBytes.emplace_back(static_cast<std::byte>(header.MessageId));
 
         // Encode payload length
-        std::vector<uint8_t> payloadLengthBytes = ConvertToNetworkPayload(header.MessagePayloadLength);
+        std::vector<std::byte> payloadLengthBytes = ConvertToNetworkPayload(header.MessagePayloadLength);
         headerBytes.insert(headerBytes.end(), payloadLengthBytes.begin(), payloadLengthBytes.end());
 
         return headerBytes;
@@ -122,22 +126,22 @@ public:
      *  (swapping byte order if necessary)
      * 
      * @param value The value to convert
-     * @return std::vector<uint8_t> The resulting payload
+     * @return std::vector<std::byte> The resulting payload
      */
-    static std::vector<uint8_t> ConvertToNetworkPayload(const uint16_t value)
+    static std::vector<std::byte> ConvertToNetworkPayload(const uint16_t value)
     {
-        std::vector<uint8_t> payload;
+        std::vector<std::byte> payload;
         payload.reserve(2); // 16 bits
 
         if (std::endian::native != std::endian::big)
         {
-            payload.emplace_back(static_cast<uint8_t>(value & 0x00FF));
-            payload.emplace_back(static_cast<uint8_t>((value >> 8) & 0x00FF));
+            payload.emplace_back(static_cast<std::byte>(value & 0x00FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 8) & 0x00FF));
         }
         else
         {
-            payload.emplace_back(static_cast<uint8_t>((value >> 8) & 0x00FF));
-            payload.emplace_back(static_cast<uint8_t>(value & 0x00FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 8) & 0x00FF));
+            payload.emplace_back(static_cast<std::byte>(value & 0x00FF));
         }
 
         return payload;
@@ -149,26 +153,26 @@ public:
      *  (swapping byte order if necessary)
      * 
      * @param value The value to convert
-     * @return std::vector<uint8_t> The resulting payload
+     * @return std::vector<std::byte> The resulting payload
      */
-    static std::vector<uint8_t> ConvertToNetworkPayload(const uint32_t value)
+    static std::vector<std::byte> ConvertToNetworkPayload(const uint32_t value)
     {
-        std::vector<uint8_t> payload;
+        std::vector<std::byte> payload;
         payload.reserve(4); // 32 bits
 
         if (std::endian::native != std::endian::big)
         {
-            payload.emplace_back(static_cast<uint8_t>(value & 0x000000FF));
-            payload.emplace_back(static_cast<uint8_t>((value >> 8) & 0x000000FF));
-            payload.emplace_back(static_cast<uint8_t>((value >> 16) & 0x000000FF));
-            payload.emplace_back(static_cast<uint8_t>((value >> 24) & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>(value & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 8) & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 16) & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 24) & 0x000000FF));
         }
         else
         {
-            payload.emplace_back(static_cast<uint8_t>((value >> 24) & 0x000000FF));
-            payload.emplace_back(static_cast<uint8_t>((value >> 16) & 0x000000FF));
-            payload.emplace_back(static_cast<uint8_t>((value >> 8) & 0x000000FF));
-            payload.emplace_back(static_cast<uint8_t>(value & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 24) & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 16) & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>((value >> 8) & 0x000000FF));
+            payload.emplace_back(static_cast<std::byte>(value & 0x000000FF));
         }
 
         return payload;
@@ -180,8 +184,8 @@ public:
      * @return uint16_t Resulting value
      */
     static uint16_t DeserializeNetworkUint16(
-        const std::vector<uint8_t>::const_iterator& begin,
-        const std::vector<uint8_t>::const_iterator& end)
+        const std::vector<std::byte>::const_iterator& begin,
+        const std::vector<std::byte>::const_iterator& end)
     {
         if ((end - begin) != 2)
         {
@@ -206,8 +210,8 @@ public:
      * @return uint32_t Resulting value
      */
     static uint32_t DeserializeNetworkUint32(
-        const std::vector<uint8_t>::const_iterator& begin,
-        const std::vector<uint8_t>::const_iterator& end)
+        const std::vector<std::byte>::const_iterator& begin,
+        const std::vector<std::byte>::const_iterator& end)
     {
         if ((end - begin) != 4)
         {
@@ -230,41 +234,49 @@ public:
         }
     }
 
+    /**
+     * @brief Given a payload of bytes, append a string to the end. Encapsulates annoying casting.
+     * @param payload Payload to append to
+     * @param string String to append
+     */
+    static void AppendStringToPayload(std::vector<std::byte>& payload, const std::string& string)
+    {
+        payload.insert(
+            payload.end(),
+            reinterpret_cast<const std::byte*>(string.data()),
+            (reinterpret_cast<const std::byte*>(string.data()) + string.size()));
+    }
+
     /* IConnection */
     void Start() override
     {
         // Bind to transport events
+        transport->SetOnBytesReceived(
+            std::bind(
+                &FtlConnection::onTransportBytesReceived,
+                this,
+                std::placeholders::_1));
         transport->SetOnConnectionClosed(std::bind(&FtlConnection::onTransportConnectionClosed, this));
 
         // Start the transport
         transport->Start();
-
-        // Spin up the thread that will listen to data coming from our transport
-        connectionThreadEndedFuture = connectionThreadEndedPromise.get_future();
-        connectionThread = std::thread(&FtlConnection::startConnectionThread, this);
-        connectionThread.detach();
     }
 
     void Stop() override
     {
-        if (!isStopping && !isTransportStopped)
-        {
-            isStopping = true;
-            // Stop the transport, which should halt our connection thread.
-            transport->Stop();
-            connectionThreadEndedFuture.get(); // Wait until our connection thread end has ended
-        }
+        // Stop the transport, which should halt our connection thread.
+        transport->Stop();
     }
 
     void SendIntro(const ConnectionIntroPayload& payload) override
     {
         // Construct the binary payload
-        std::vector<uint8_t> messagePayload
+        std::vector<std::byte> messagePayload
         {
-            payload.VersionMajor,
-            payload.VersionMinor,
-            payload.VersionRevision,
-            payload.RelayLayer,
+            static_cast<std::byte>(payload.VersionMajor),
+            static_cast<std::byte>(payload.VersionMinor),
+            static_cast<std::byte>(payload.VersionRevision),
+            static_cast<std::byte>(payload.RelayLayer),
         };
         auto regionCodeLength = FtlConnection::ConvertToNetworkPayload(
             static_cast<uint16_t>(payload.RegionCode.size()));
@@ -272,14 +284,8 @@ public:
             messagePayload.end(),
             regionCodeLength.begin(),
             regionCodeLength.end());
-        messagePayload.insert(
-            messagePayload.end(),
-            payload.RegionCode.begin(),
-            payload.RegionCode.end());
-        messagePayload.insert(
-            messagePayload.end(),
-            payload.Hostname.begin(),
-            payload.Hostname.end());
+        AppendStringToPayload(messagePayload, payload.RegionCode);
+        AppendStringToPayload(messagePayload, payload.Hostname);
 
         // Construct the message header
         OrchestrationMessageHeader header
@@ -297,9 +303,8 @@ public:
     
     void SendOutro(const ConnectionOutroPayload& payload) override
     {
-        std::vector<uint8_t> messagePayload(
-            payload.DisconnectReason.begin(),
-            payload.DisconnectReason.end());
+        std::vector<std::byte> messagePayload;
+        AppendStringToPayload(messagePayload, payload.DisconnectReason);
         
         OrchestrationMessageHeader header
         {
@@ -315,7 +320,7 @@ public:
 
     void SendNodeState(const ConnectionNodeStatePayload& payload) override
     {
-        std::vector<uint8_t> messagePayload;
+        std::vector<std::byte> messagePayload;
         messagePayload.reserve(8);
         auto currentLoad = ConvertToNetworkPayload(payload.CurrentLoad);
         messagePayload.insert(messagePayload.end(), currentLoad.begin(), currentLoad.end());
@@ -336,18 +341,18 @@ public:
 
     void SendChannelSubscription(const ConnectionSubscriptionPayload& payload) override
     {
-        std::vector<uint8_t> messagePayload
+        std::vector<std::byte> messagePayload
         {
-            static_cast<uint8_t>(payload.IsSubscribe),
+            static_cast<std::byte>(payload.IsSubscribe),
         };
 
         messagePayload.reserve(5 + payload.StreamKey.size());
         auto channelIdBytes = ConvertToNetworkPayload(payload.ChannelId);
         messagePayload.insert(messagePayload.end(), channelIdBytes.begin(), channelIdBytes.end());
-        for (const auto& streamKeyByte : payload.StreamKey)
-        {
-            messagePayload.push_back(static_cast<uint8_t>(streamKeyByte));
-        }
+        messagePayload.insert(
+            messagePayload.end(),
+            payload.StreamKey.begin(),
+            payload.StreamKey.end());
 
         OrchestrationMessageHeader header
         {
@@ -363,9 +368,9 @@ public:
     
     void SendStreamPublish(const ConnectionPublishPayload& payload) override
     {
-        std::vector<uint8_t> messagePayload
+        std::vector<std::byte> messagePayload
         {
-            static_cast<uint8_t>(payload.IsPublish),
+            static_cast<std::byte>(payload.IsPublish),
         };
         messagePayload.reserve(9);
         auto channelIdBytes = ConvertToNetworkPayload(payload.ChannelId);
@@ -387,7 +392,7 @@ public:
 
     void SendStreamRelay(const ConnectionRelayPayload& payload) override
     {
-        std::vector<uint8_t> messagePayload
+        std::vector<std::byte> messagePayload
         {
             static_cast<uint8_t>(payload.IsStartRelay),
         };
@@ -402,14 +407,11 @@ public:
             messagePayload.end(),
             hostnameSizeBytes.begin(),
             hostnameSizeBytes.end());
+        AppendStringToPayload(messagePayload, payload.TargetHostname);
         messagePayload.insert(
             messagePayload.end(),
-            payload.TargetHostname.begin(),
-            payload.TargetHostname.end());
-        for (const auto& streamKeyByte : payload.StreamKey)
-        {
-            messagePayload.push_back(static_cast<uint8_t>(streamKeyByte));
-        }
+            payload.StreamKey.begin(),
+            payload.StreamKey.end());
 
         OrchestrationMessageHeader header
         {
@@ -465,11 +467,8 @@ public:
 
 private:
     std::shared_ptr<IConnectionTransport> transport;
-    std::atomic<bool> isStopping { false };
-    std::atomic<bool> isTransportStopped { false };
-    std::promise<void> connectionThreadEndedPromise;
-    std::future<void> connectionThreadEndedFuture;
-    std::thread connectionThread;
+    std::vector<std::byte> transportReadBuffer;
+    std::optional<OrchestrationMessageHeader> parsedTransportMessageHeader;
     std::function<void(void)> onConnectionClosed;
     connection_cb_intro_t onIntro;
     connection_cb_outro_t onOutro;
@@ -482,62 +481,47 @@ private:
 
     /* Private methods */
     /**
-     * @brief
-     *  Method body intended to run on a different thread initialized by Start(), handles
-     *  incoming connection data.
+     * @brief Called when underlying transport has received new data
+     * @param bytes data from transport
      */
-    void startConnectionThread()
+    void onTransportBytesReceived(const std::vector<std::byte>& bytes)
     {
-        std::optional<OrchestrationMessageHeader> messageHeader;
-        std::vector<uint8_t> buffer;
-        while (true)
+        // Add received bytes to our buffer
+        spdlog::info("{} received {} bytes ...", GetHostname(), bytes.size());
+        transportReadBuffer.insert(transportReadBuffer.end(), bytes.begin(), bytes.end());
+
+        // Parse the header if we haven't already
+        if (!parsedTransportMessageHeader.has_value())
         {
-            if (isTransportStopped)
+            // Do we have enough bytes for a header?
+            if (transportReadBuffer.size() >= 4)
             {
-                break;
+                OrchestrationMessageHeader parsedHeader = ParseMessageHeader(transportReadBuffer);
+                parsedTransportMessageHeader.emplace(parsedHeader);
             }
-
-            // Try to read in some data
-            spdlog::info("Attempting to read for {} ...", GetHostname());
-            std::vector<uint8_t> readBytes = transport->Read();
-            buffer.insert(buffer.end(), readBytes.begin(), readBytes.end());
-
-            // Parse the header if we haven't already
-            if (!messageHeader.has_value())
+            else
             {
-                // Do we have enough bytes for a header?
-                if (buffer.size() >= 4)
-                {
-                    OrchestrationMessageHeader parsedHeader = ParseMessageHeader(buffer);
-                    messageHeader.emplace(parsedHeader);
-                }
-                else
-                {
-                    // We need more bytes before we can deal with this message.
-                    continue;
-                }
-            }
-            
-            // Do we have all the payload bytes we need to process this message?
-            uint16_t messagePayloadLength = messageHeader.value().MessagePayloadLength;
-            if ((buffer.size() - 4) >= messagePayloadLength)
-            {
-                std::vector<uint8_t> messagePayload = std::vector<uint8_t>(
-                    (buffer.begin() + 4),
-                    (buffer.begin() + 4 + messagePayloadLength));
-
-                // Process the message, then remove the message from the read buffer
-                processMessage(messageHeader.value(), messagePayload);
-                buffer.erase(buffer.begin(), (buffer.begin() + 4 + messagePayloadLength));
-                messageHeader.reset();
+                // We need more bytes before we can deal with this message.
+                // Wait for our transport to deliver us more juicy data.
+                return;
             }
         }
-
-        if (onConnectionClosed)
+        
+        // Do we have all the payload bytes we need to process this message?
+        uint16_t messagePayloadLength = parsedTransportMessageHeader.value().MessagePayloadLength;
+        if ((transportReadBuffer.size() - 4) >= messagePayloadLength)
         {
-            onConnectionClosed();
+            std::vector<std::byte> messagePayload(
+                (transportReadBuffer.begin() + 4),
+                (transportReadBuffer.begin() + 4 + messagePayloadLength));
+
+            // Process the message, then remove the message from the read buffer
+            processMessage(parsedTransportMessageHeader.value(), messagePayload);
+            transportReadBuffer.erase(
+                transportReadBuffer.begin(),
+                (transportReadBuffer.begin() + 4 + messagePayloadLength));
+            parsedTransportMessageHeader.reset();
         }
-        connectionThreadEndedPromise.set_value_at_thread_exit();
     }
 
     /**
@@ -545,7 +529,10 @@ private:
      */
     void onTransportConnectionClosed()
     {
-        isTransportStopped = true;
+        if (onConnectionClosed)
+        {
+            onConnectionClosed();
+        }
     }
 
     /**
@@ -555,7 +542,7 @@ private:
      */
     void processMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         if (header.MessageDirection == OrchestrationMessageDirectionKind::Response)
         {
@@ -593,7 +580,7 @@ private:
      */
     void processIntroMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         if (payload.size() < 6)
         {
@@ -622,20 +609,23 @@ private:
                 .MessageId = header.MessageId,
                 .MessagePayloadLength = 0,
             };
-            sendMessage(responseHeader, std::vector<uint8_t>());
+            sendMessage(responseHeader, std::vector<std::byte>());
             return;
         }
 
         ConnectionIntroPayload introPayload
         {
-            .VersionMajor = payload.at(0),
-            .VersionMinor = payload.at(1),
-            .VersionRevision = payload.at(2),
-            .RelayLayer = payload.at(3),
+            .VersionMajor = static_cast<uint8_t>(payload.at(0)),
+            .VersionMinor = static_cast<uint8_t>(payload.at(1)),
+            .VersionRevision = static_cast<uint8_t>(payload.at(2)),
+            .RelayLayer = static_cast<uint8_t>(payload.at(3)),
             // (bytes 4, 5 are region code length)
-            .RegionCode = 
-                std::string((payload.cbegin() + 6), (payload.cbegin() + 6 + regionCodeLength)),
-            .Hostname = std::string((payload.cbegin() + 6 + regionCodeLength), payload.cend())
+            .RegionCode = std::string(
+                (reinterpret_cast<const char*>(payload.data()) + 6),
+                (reinterpret_cast<const char*>(payload.data()) + 6 + regionCodeLength)),
+            .Hostname = std::string(
+                (reinterpret_cast<const char*>(payload.data()) + 6 + regionCodeLength),
+                (reinterpret_cast<const char*>(payload.data()) + payload.size())),
         };
 
         // Indicate that we received an intro
@@ -657,7 +647,7 @@ private:
             .MessageId = header.MessageId,
             .MessagePayloadLength = 0,
         };
-        sendMessage(responseHeader, std::vector<uint8_t>());
+        sendMessage(responseHeader, std::vector<std::byte>());
     }
 
     /**
@@ -665,11 +655,13 @@ private:
      */
     void processOutroMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         ConnectionOutroPayload outroPayload
         {
-            .DisconnectReason = std::string(payload.begin(), payload.end())
+            .DisconnectReason = std::string(
+                reinterpret_cast<const char*>(payload.data()),
+                payload.size())
         };
 
         // Indicate that we received an intro
@@ -687,7 +679,7 @@ private:
             .MessageId = header.MessageId,
             .MessagePayloadLength = 0,
         };
-        sendMessage(responseHeader, std::vector<uint8_t>());
+        sendMessage(responseHeader, std::vector<std::byte>());
     }
 
     /**
@@ -695,7 +687,7 @@ private:
      */
     void processNodeStateMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         if (payload.size() < 8)
         {
@@ -712,7 +704,7 @@ private:
                 .MessageId = header.MessageId,
                 .MessagePayloadLength = 0,
             };
-            sendMessage(responseHeader, std::vector<uint8_t>());
+            sendMessage(responseHeader, std::vector<std::byte>());
             return;
         }
         
@@ -737,7 +729,7 @@ private:
             .MessageId = header.MessageId,
             .MessagePayloadLength = 0,
         };
-        sendMessage(responseHeader, std::vector<uint8_t>());
+        sendMessage(responseHeader, std::vector<std::byte>());
     }
 
     /**
@@ -745,7 +737,7 @@ private:
      */
     void processChannelSubscriptionMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         if (payload.size() < 5)
         {
@@ -753,15 +745,10 @@ private:
         }
 
         // TODO: We should be using std::byte everywhere...
-        std::vector<std::byte> streamKey;
-        streamKey.reserve(payload.size() - 5);
-        for (auto it = (payload.begin() + 5); it != payload.end(); ++it)
-        {
-            streamKey.push_back(static_cast<std::byte>(*it));
-        }
+        std::vector<std::byte> streamKey((payload.begin() + 5), payload.end());
         ConnectionSubscriptionPayload subPayload
         {
-            .IsSubscribe = (payload.at(0) == 1),
+            .IsSubscribe = (static_cast<uint8_t>(payload.at(0)) == 1),
             .ChannelId = DeserializeNetworkUint32((payload.cbegin() + 1), (payload.cbegin() + 5)),
             .StreamKey = streamKey,
         };
@@ -781,7 +768,7 @@ private:
             .MessageId = header.MessageId,
             .MessagePayloadLength = 0,
         };
-        sendMessage(responseHeader, std::vector<uint8_t>());
+        sendMessage(responseHeader, std::vector<std::byte>());
     }
 
     /**
@@ -789,7 +776,7 @@ private:
      */
     void processStreamPublishMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         if (payload.size() < 9)
         {
@@ -798,7 +785,7 @@ private:
 
         ConnectionPublishPayload publishPayload
         {
-            .IsPublish = (payload.at(0) == 1),
+            .IsPublish = (static_cast<uint8_t>(payload.at(0)) == 1),
             .ChannelId = DeserializeNetworkUint32((payload.cbegin() + 1), (payload.cbegin() + 5)),
             .StreamId = DeserializeNetworkUint32((payload.cbegin() + 5), (payload.cbegin() + 9)),
         };
@@ -818,7 +805,7 @@ private:
             .MessageId = header.MessageId,
             .MessagePayloadLength = 0,
         };
-        sendMessage(responseHeader, std::vector<uint8_t>());
+        sendMessage(responseHeader, std::vector<std::byte>());
     }
 
     /**
@@ -826,7 +813,7 @@ private:
      */
     void processStreamRelayMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
         if (payload.size() < 11)
         {
@@ -855,27 +842,20 @@ private:
                 .MessageId = header.MessageId,
                 .MessagePayloadLength = 0,
             };
-            sendMessage(responseHeader, std::vector<uint8_t>());
+            sendMessage(responseHeader, std::vector<std::byte>());
             return;
-        }
-
-        // TODO: Use std::byte everywhere to avoid these annoying casts...
-        std::vector<std::byte> streamKey;
-        streamKey.reserve(payload.size() - 11 - hostnameLength);
-        for (auto it = payload.cbegin() + 11 + hostnameLength; it < payload.cend(); ++it)
-        {
-            streamKey.push_back(static_cast<std::byte>(*it));
         }
 
         ConnectionRelayPayload relayPayload
         {
-            .IsStartRelay = (payload.at(0) == 1),
+            .IsStartRelay = (static_cast<uint8_t>(payload.at(0)) == 1),
             .ChannelId = DeserializeNetworkUint32((payload.cbegin() + 1), (payload.cbegin() + 5)),
             .StreamId = DeserializeNetworkUint32((payload.cbegin() + 5), (payload.cbegin() + 9)),
             // (bytes 10 - 11 are the hostname length)
-            .TargetHostname = 
-                std::string((payload.cbegin() + 11), (payload.cbegin() + 11 + hostnameLength)),
-            .StreamKey = streamKey,
+            .TargetHostname = std::string(
+                (reinterpret_cast<const char*>(payload.data()) + 11),
+                (reinterpret_cast<const char*>(payload.data()) + 11 + hostnameLength)),
+            .StreamKey = std::vector<std::byte>(payload.cbegin() + 11, payload.cend()),
         };
 
         // Indicate that we received a relay
@@ -893,7 +873,7 @@ private:
             .MessageId = header.MessageId,
             .MessagePayloadLength = 0,
         };
-        sendMessage(responseHeader, std::vector<uint8_t>());
+        sendMessage(responseHeader, std::vector<std::byte>());
     }
 
     /**
@@ -903,9 +883,9 @@ private:
      */
     void sendMessage(
         const OrchestrationMessageHeader& header,
-        const std::vector<uint8_t>& payload)
+        const std::vector<std::byte>& payload)
     {
-        std::vector<uint8_t> sendBuffer = SerializeMessageHeader(header);
+        std::vector<std::byte> sendBuffer = SerializeMessageHeader(header);
         sendBuffer.reserve(4 + payload.size());
 
         // Append payload

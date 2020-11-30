@@ -30,9 +30,10 @@ class FtlOrchestrationClient
 {
 public:
     static std::shared_ptr<FtlConnection> Connect(
-        std::string hostname,
+        std::string targetHostname,
         std::vector<std::byte> preSharedKey,
-        uint16_t port = DEFAULT_PORT)
+        std::string myHostname = std::string(),
+        uint16_t targetPort = DEFAULT_PORT)
     {
         // Load SSL stuff
         SSL_load_error_strings();
@@ -45,8 +46,11 @@ public:
         addrHints.ai_socktype = SOCK_STREAM;
         addrHints.ai_protocol = IPPROTO_TCP;
         addrinfo* addrLookup = nullptr;
-        int lookupErr = 
-            getaddrinfo(hostname.c_str(), std::to_string(port).c_str(), &addrHints, &addrLookup);
+        int lookupErr = getaddrinfo(
+            targetHostname.c_str(),
+            std::to_string(targetPort).c_str(),
+            &addrHints,
+            &addrLookup);
         if (lookupErr != 0)
         {
             throw std::invalid_argument("Error looking up hostname");
@@ -72,7 +76,8 @@ public:
                 preSharedKey);
 
         // Create an FtlConnection on top of this transport
-        std::shared_ptr<FtlConnection> ftlConnection = std::make_shared<FtlConnection>(transport);
+        std::shared_ptr<FtlConnection> ftlConnection = 
+            std::make_shared<FtlConnection>(transport, myHostname);
         return ftlConnection;
     }
 

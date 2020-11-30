@@ -19,31 +19,27 @@
 class MockConnectionTransport : public IConnectionTransport
 {
 public:
-    void MockSetReadBuffer(std::vector<uint8_t> buffer)
+    void MockSetReadBuffer(std::vector<std::byte> buffer)
     {
-        std::lock_guard<std::mutex> lock(readMutex);
-        readBuffer = buffer;
-    }
-
-    std::vector<uint8_t> MockGetWriteBuffer(bool clear = false)
-    {
-        std::lock_guard<std::mutex> lock(writeMutex);
-        auto returnBuffer = writeBuffer;
-        if (clear)
+        if (onBytesReceived)
         {
-            writeBuffer.clear();
+            onBytesReceived(buffer);
         }
-        return returnBuffer;
     }
 
-    std::optional<std::vector<uint8_t>> WaitForWrite(
+    std::optional<std::vector<std::byte>> WaitForWrite(
         std::chrono::milliseconds timeout = std::chrono::milliseconds(1000))
     {
         std::unique_lock<std::mutex> lock(writeMutex);
-        writeConditionVariable.wait_for(lock, timeout);
+        if (writeBuffer.size() <= 0)
+        {
+            writeConditionVariable.wait_for(lock, timeout);
+        }
         if (writeBuffer.size() > 0)
         {
-            return std::optional<std::vector<uint8_t>>(writeBuffer);
+            auto tempBuffer = writeBuffer;
+            writeBuffer.clear();
+            return tempBuffer;
         }
         else
         {
@@ -56,19 +52,9 @@ public:
     { }
 
     void Stop() override
-    {
-        onConnectionClosed();
-    }
+    { }
 
-    std::vector<uint8_t> Read() override
-    {
-        std::lock_guard<std::mutex> lock(readMutex);
-        auto returnBuffer = readBuffer;
-        readBuffer.clear();
-        return returnBuffer;
-    }
-
-    void Write(const std::vector<uint8_t>& bytes) override
+    void Write(const std::vector<std::byte>& bytes) override
     {
         {
             std::lock_guard<std::mutex> lock(writeMutex);
@@ -77,16 +63,21 @@ public:
         writeConditionVariable.notify_all();
     }
 
+    void SetOnBytesReceived(
+        std::function<void(const std::vector<std::byte>&)> onBytesReceived) override
+    {
+        this->onBytesReceived = onBytesReceived;
+    }
+
     void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) override
     {
         this->onConnectionClosed = onConnectionClosed;
     }
 
 private:
-    std::mutex readMutex;
-    std::vector<uint8_t> readBuffer;
     std::mutex writeMutex;
     std::condition_variable writeConditionVariable;
-    std::vector<uint8_t> writeBuffer;
+    std::vector<std::byte> writeBuffer;
+    std::function<void(const std::vector<std::byte>&)> onBytesReceived;
     std::function<void(void)> onConnectionClosed;
 };
