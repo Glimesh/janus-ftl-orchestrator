@@ -51,12 +51,12 @@ public:
     void CreateStream(ftl_stream_id_t id, ftl_channel_id_t channel_id);
     void DeleteStream(ftl_stream_id_t id);
 
-    void CreateSubscription(ftl_stream_id_t id, ftl_channel_id_t channel_id);
-    void DeleteSubscription(ftl_stream_id_t id);
+    void CreateSubscription(ftl_channel_id_t channel_id);
+    void DeleteSubscription(ftl_channel_id_t channel_id);
 
     void SetStatus(NodeStatus status);
 
-    Subscription SubscribeToRouteChanges();
+    Signal::Subscription SubscribeToRouteChanges();
 
 private:
     std::mutex mutex;

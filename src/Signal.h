@@ -46,8 +46,8 @@ public:
     {
     public:
         Subscription();
-        Subscription& operator=(Subscription&&) = default;
         Subscription(std::shared_ptr<Channel> channel);
+        Subscription& operator=(Subscription&&) = default;
 
         bool IsActive();
 

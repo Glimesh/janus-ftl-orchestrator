@@ -139,7 +139,7 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
                      const WatchRoutesRequest *request,
                      ServerWriter<WatchRoutesResponse> *writer) override
   {
-    Signal::Subscription subscription;
+    Signal::Subscription signal;
     {
       Node *node = nodeStore->GetNode(request->node_name());
       std::lock_guard<std::mutex> lock(nodeStoreMutex);
@@ -147,7 +147,7 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
       {
         return NODE_NOT_FOUND;
       }
-      subscription = node->SubscribeToRouteChanges();
+      signal = node->SubscribeToRouteChanges();
     }
 
     do
@@ -156,8 +156,8 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
       Node* node = nodeStore->GetNode(request->node_name());
       WatchRoutesResponse response;
       writer->Write(response);
-      subscription.WaitFor(10s);
-    } while (subscription.IsActive());
+      signal.WaitFor(10s);
+    } while (signal.IsActive());
 
     return Status::OK;
   }
