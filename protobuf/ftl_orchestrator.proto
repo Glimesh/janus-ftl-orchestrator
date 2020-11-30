@@ -2,6 +2,25 @@ syntax = "proto3";
 
 package orchestrator;
 
+message Stream {
+  uint32 stream_id = 1;
+  uint32 channel_id = 2;
+}
+
+message Subscription {
+  uint32 stream_id = 1;
+  uint32 channel_id = 2;
+  bytes stream_key = 4;
+}
+
+message Relay {
+  uint32 stream_id = 1;
+  uint32 channel_id = 2;
+  string target_node_name = 3;
+  string target_hostname = 4;
+  bytes target_stream_key = 5;
+}
+
 service FtlOrchestrator {
   rpc CreateStream (CreateStreamRequest) returns (CreateStreamResponse) {}
   rpc DeleteStream (DeleteStreamRequest) returns (DeleteStreamResponse) {}
@@ -14,7 +33,7 @@ service FtlOrchestrator {
   
   rpc UpdateNodeStatus (UpdateNodeStatusRequest) returns (UpdateNodeStatusResponse) {}
   
-  rpc RegisterRelay (RegisterRelayRequest) returns (stream RelayUpdate) {}
+  rpc WatchRoutes (WatchRoutesRequest) returns (stream WatchRoutesResponse) {}
 }
 
 message CreateStreamRequest {
@@ -35,9 +54,8 @@ message DeleteStreamResponse {}
 message CreateSubscriptionRequest {
   string node_name = 1;
   uint32 channel_id = 2;
-  bytes target_hostname = 3;
   // Stream key to be used when relaying the channel to this node
-  bytes target_stream_key = 4;
+  bytes stream_key = 3;
 }
 
 message CreateSubscriptionResponse {}
@@ -51,6 +69,7 @@ message DeleteSubscriptionResponse {}
 
 message CreateNodeRequest {
   string node_name = 1;
+  string hostname = 2;
 }
 
 message CreateNodeResponse {}
@@ -69,26 +88,12 @@ message UpdateNodeStatusRequest {
 
 message UpdateNodeStatusResponse {}
 
-message RegisterRelayRequest {
+message WatchRoutesRequest {
   string node_name = 1;
 }
 
-message RelayUpdate {
-  oneof update {
-    StartRelaying start = 1;
-    StopRelaying stop = 2;
-  }
-  
-  message StartRelaying {
-    uint32 stream_id = 1;
-    uint32 channel_id = 2;
-    string target_hostname = 3;
-    bytes target_stream_key = 4;
-  }
-
-  message StopRelaying {
-    uint32 stream_id = 1;
-    uint32 channel_id = 2;
-    string target_hostname = 3;
-  }
+message WatchRoutesResponse {
+  repeated Stream streams = 1;
+  repeated Subscription subscriptions = 2;
+  repeated Relay relays = 3;
 }

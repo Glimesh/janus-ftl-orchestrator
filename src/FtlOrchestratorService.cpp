@@ -7,16 +7,23 @@
 
 #include "ftl_orchestrator.grpc.pb.h"
 #include "NodeStore.h"
+#include "Signal.h"
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 #include <spdlog/spdlog.h>
+#include <condition_variable>
+#include <thread>
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 using std::shared_ptr;
 
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
+using grpc::ServerWriter;
 using grpc::Status;
 using grpc::StatusCode;
 
@@ -33,10 +40,10 @@ using orchestrator::DeleteStreamResponse;
 using orchestrator::DeleteSubscriptionRequest;
 using orchestrator::DeleteSubscriptionResponse;
 using orchestrator::FtlOrchestrator;
-using orchestrator::RegisterRelayRequest;
-using orchestrator::RelayUpdate;
 using orchestrator::UpdateNodeStatusRequest;
 using orchestrator::UpdateNodeStatusResponse;
+using orchestrator::WatchRoutesRequest;
+using orchestrator::WatchRoutesResponse;
 
 const Status &NODE_NOT_FOUND = Status(StatusCode::NOT_FOUND, "Node not found");
 
@@ -44,6 +51,7 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
 {
   Status CreateStream(ServerContext *context, const CreateStreamRequest *request, CreateStreamResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     Node *node = nodeStore->GetNode(request->node_name());
     if (node == nullptr)
     {
@@ -57,6 +65,7 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
 
   Status DeleteStream(ServerContext *context, const DeleteStreamRequest *request, DeleteStreamResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     Node *node = nodeStore->GetNode(request->node_name());
     if (node == nullptr)
     {
@@ -69,6 +78,7 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
   }
   Status CreateSubscription(ServerContext *context, const CreateSubscriptionRequest *request, CreateSubscriptionResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     Node *node = nodeStore->GetNode(request->node_name());
     if (node == nullptr)
     {
@@ -82,6 +92,7 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
 
   Status DeleteSubscription(ServerContext *context, const DeleteSubscriptionRequest *request, DeleteSubscriptionResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     Node *node = nodeStore->GetNode(request->node_name());
     if (node == nullptr)
     {
@@ -95,18 +106,21 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
 
   Status CreateNode(ServerContext *context, const CreateNodeRequest *request, CreateNodeResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     nodeStore->CreateNode(request->node_name());
     return Status::OK;
   }
 
   Status DeleteNode(ServerContext *context, const DeleteNodeRequest *request, DeleteNodeResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     nodeStore->DeleteNode(request->node_name());
     return Status::OK;
   }
 
   Status UpdateNodeStatus(ServerContext *context, const UpdateNodeStatusRequest *request, UpdateNodeStatusResponse *response) override
   {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
     Node *node = nodeStore->GetNode(request->node_name());
     if (node == nullptr)
     {
@@ -121,21 +135,36 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
     return Status::OK;
   }
 
-  Status RegisterRelay(ServerContext *context, const RegisterRelayRequest *request, RelayUpdate *response) override
+  Status WatchRoutes(grpc::ServerContext *context,
+                     const WatchRoutesRequest *request,
+                     ServerWriter<WatchRoutesResponse> *writer) override
   {
-    Node *node = nodeStore->GetNode(request->node_name());
-    if (node == nullptr)
+    Signal::Subscription subscription;
     {
-      return NODE_NOT_FOUND;
+      Node *node = nodeStore->GetNode(request->node_name());
+      std::lock_guard<std::mutex> lock(nodeStoreMutex);
+      if (node == nullptr)
+      {
+        return NODE_NOT_FOUND;
+      }
+      subscription = node->SubscribeToRouteChanges();
     }
 
-    node->DeleteStream(request->stream_id());
+    do
+    {
+      std::lock_guard<std::mutex> lock(nodeStoreMutex);
+      Node* node = nodeStore->GetNode(request->node_name());
+      WatchRoutesResponse response;
+      writer->Write(response);
+      subscription.WaitFor(10s);
+    } while (subscription.IsActive());
 
     return Status::OK;
   }
 
 private:
-  shared_ptr<NodeStore> nodeStore;
+  std::unique_ptr<NodeStore> nodeStore;
+  std::mutex nodeStoreMutex;
 };
 
 void RunServer()

@@ -8,37 +8,39 @@
 #pragma once
 
 #include "ChannelSubscription.h"
+#include "concurrent_unordered_map.h"
 #include "FtlTypes.h"
 
 #include <cstddef>
 #include <map>
 #include <memory>
 #include <mutex>
-#include <set>
-#include <vector>
-#include <string>
 #include <optional>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-class Stream
+struct Stream
 {
     ftl_stream_id_t id;
     ftl_channel_id_t channel_id;
 };
 
-class Subscription
+struct Subscription
 {
     ftl_channel_id_t channel_id;
     std::vector<std::byte> stream_key;
 };
 
-class Relay
+struct Relay
 {
     ftl_channel_id_t channel_id;
     std::string target_hostname;
     std::vector<std::byte> target_stream_key;
 };
 
-class NodeStatus
+struct NodeStatus
 {
     uint32_t current_load;
     uint32_t maximum_load;
@@ -55,6 +57,8 @@ public:
 
     void SetStatus(NodeStatus status);
 
+    Subscription SubscribeToRouteChanges();
+
 private:
     std::mutex mutex;
     std::map<ftl_stream_id_t, Stream> streams;
@@ -67,10 +71,10 @@ class NodeStore
 {
 public:
     void CreateNode(std::string name);
-    Node* GetNode(const std::string& name);
+    Node* GetNode(const std::string &name);
+    std::weak_ptr<Node> GetNodeWeak(const std::string &name);
     void DeleteNode(std::string name);
 
 private:
-    std::mutex mutex;
-    std::map<std::string, Node> nodes;
+    unordered_map<std::string, Node> nodes;
 };
