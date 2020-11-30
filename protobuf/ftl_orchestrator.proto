@@ -29,6 +29,7 @@ service FtlOrchestrator {
   rpc DeleteSubscription (DeleteSubscriptionRequest) returns (DeleteSubscriptionResponse) {}
   
   rpc CreateNode (CreateNodeRequest) returns (CreateNodeResponse) {}
+  rpc GetNode (GetNodeRequest) returns (GetNodeResponse) {}
   rpc DeleteNode (DeleteNodeRequest) returns (DeleteNodeResponse) {}
   
   rpc UpdateNodeStatus (UpdateNodeStatusRequest) returns (UpdateNodeStatusResponse) {}
@@ -72,7 +73,16 @@ message CreateNodeRequest {
   string hostname = 2;
 }
 
-message CreateNodeResponse {}
+message CreateNodeResponse {
+}
+
+message GetNodeRequest {
+  string node_name = 1;
+}
+
+message GetNodeResponse {
+  string node_name = 1;
+  string hostname = 2;}
 
 message DeleteNodeRequest {
   string node_name = 1;

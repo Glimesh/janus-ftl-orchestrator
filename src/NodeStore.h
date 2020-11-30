@@ -51,6 +51,9 @@ public:
     Node() {}
     Node(const std::string &name) : name(name) {}
 
+    const std::string &Name() { return name; }
+    const std::string &Hostname() { return hostname; }
+
     void CreateStream(ftl_stream_id_t id, ftl_channel_id_t channel_id);
     void DeleteStream(ftl_stream_id_t id);
 
@@ -63,6 +66,7 @@ public:
 
 private:
     std::string name;
+    std::string hostname;
     std::mutex mutex;
     std::map<ftl_stream_id_t, Stream> streams;
     std::map<ftl_channel_id_t, Subscription> subscriptions;

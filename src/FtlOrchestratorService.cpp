@@ -35,6 +35,8 @@ using orchestrator::CreateSubscriptionRequest;
 using orchestrator::CreateSubscriptionResponse;
 using orchestrator::DeleteNodeRequest;
 using orchestrator::DeleteNodeResponse;
+using orchestrator::GetNodeRequest;
+using orchestrator::GetNodeResponse;
 using orchestrator::DeleteStreamRequest;
 using orchestrator::DeleteStreamResponse;
 using orchestrator::DeleteSubscriptionRequest;
@@ -49,6 +51,9 @@ const Status &NODE_NOT_FOUND = Status(StatusCode::NOT_FOUND, "Node not found");
 
 class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
 {
+public:
+  FtlOrchestratorServiceImpl(std::unique_ptr<NodeStore> nodeStore): nodeStore(std::move(nodeStore)) {}
+
   Status CreateStream(ServerContext *context, const CreateStreamRequest *request, CreateStreamResponse *response) override
   {
     std::lock_guard<std::mutex> lock(nodeStoreMutex);
@@ -111,6 +116,20 @@ class FtlOrchestratorServiceImpl final : public FtlOrchestrator::Service
     return Status::OK;
   }
 
+  Status GetNode(ServerContext *context, const GetNodeRequest *request, GetNodeResponse *response) override
+  {
+    std::lock_guard<std::mutex> lock(nodeStoreMutex);
+    Node* node = nodeStore->GetNode(request->node_name());
+    if (node == nullptr) {
+      return NODE_NOT_FOUND;
+    }
+
+    response->set_node_name(node->Name());
+    response->set_hostname(node->Hostname());
+    
+    return Status::OK;
+  }
+
   Status DeleteNode(ServerContext *context, const DeleteNodeRequest *request, DeleteNodeResponse *response) override
   {
     std::lock_guard<std::mutex> lock(nodeStoreMutex);
@@ -170,7 +189,7 @@ private:
 void RunServer()
 {
   std::string server_address("0.0.0.0:50051");
-  FtlOrchestratorServiceImpl service;
+  FtlOrchestratorServiceImpl service(std::make_unique<NodeStore>());
 
   grpc::EnableDefaultHealthCheckService(true);
   ServerBuilder builder;
