@@ -8,6 +8,7 @@
 #include <catch2/catch.hpp>
 
 #include <FtlOrchestrationClient.h>
+#include <Orchestrator.h>
 #include <TlsConnectionManager.h>
 
 #include <chrono>
@@ -64,6 +65,16 @@ public:
     }
 
     /**
+     * @brief Instantiates a new Orchestrator and sets up callbacks
+     * 
+     */
+    void InitOrchestrator()
+    {
+        orchestrator = std::make_shared<Orchestrator<FtlConnection>>(connectionManager);
+        orchestrator->Init();
+    }
+
+    /**
      * @brief Starts listening for connections on a separate thread
      */
     void StartConnectionManagerListening()
@@ -104,9 +115,28 @@ public:
      * @brief Prepares a new FtlConnection client to connect to local orchestration service
      * @return std::shared_ptr<FtlConnection> new client connection
      */
-    std::shared_ptr<FtlConnection> ConnectNewClient(std::string hostname = std::string())
+    std::shared_ptr<FtlConnection> ConnectNewClient(
+        std::string hostname = std::string(),
+        bool sendIntro = false,
+        std::string regionCode = "global")
     {
-        return FtlOrchestrationClient::Connect("127.0.0.1", preSharedKey, hostname);
+        std::shared_ptr<FtlConnection> connection = 
+            FtlOrchestrationClient::Connect("127.0.0.1", preSharedKey, hostname);
+        if (sendIntro)
+        {
+            connection->Start();
+            connection->SendIntro(
+                ConnectionIntroPayload
+                {
+                    .VersionMajor = 0,
+                    .VersionMinor = 0,
+                    .VersionRevision = 1,
+                    .RelayLayer = 0,
+                    .RegionCode = regionCode,
+                    .Hostname = hostname,
+                });
+        }
+        return connection;
     }
 
     /**
@@ -123,7 +153,9 @@ public:
      * @brief
      *  Creates a new FtlConnection client, connects it to the local orchestration service,
      *  sends an Intro message with the given parameters, and returns both the local and received
-     *  connections
+     *  connections.
+     *  NOTE: This function should only be used without an Orchestrator, as the Orchestrator will
+     *  override the connectionmanager event for new connections.
      * @param clientHostname hostname for the new client
      * @param clientRegionCode region code for the new client
      * @return
@@ -131,7 +163,7 @@ public:
      *  first reference is the client connection, second reference is the received connection.
      */
     std::pair<std::shared_ptr<FtlConnection>, std::shared_ptr<FtlConnection>>
-        ConnectAndStartNewClient(
+        ConnectAndListenForNewClientIntro(
             std::string clientHostname,
             std::string clientRegionCode = "global")
     {
@@ -185,6 +217,7 @@ protected:
     std::condition_variable connectionManagerConditionVariable;
     std::shared_ptr<TlsConnectionManager<FtlConnection>> connectionManager;
     std::thread connectionManagerListenThread;
+    std::shared_ptr<Orchestrator<FtlConnection>> orchestrator;
     std::list<std::shared_ptr<FtlConnection>> newConnections;
     std::list<std::shared_ptr<FtlConnection>> connections;
     std::list<std::shared_ptr<FtlConnection>> clients;
@@ -209,7 +242,7 @@ TEST_CASE_METHOD(
     StartConnectionManagerListening();
     
     // Now connect a client
-    std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient();
+    std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient("test");
 
     // We need to start the client in a separate thread so we can accept the connection
     // in this thread without deadlocking.
@@ -250,7 +283,7 @@ TEST_CASE_METHOD(
     InitConnectionManager();
     StartConnectionManagerListening();
 
-    std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient();
+    std::shared_ptr<FtlConnection> clientConnection = ConnectNewClient("test");
     std::future<void> clientConnected = StartClientAsync(clientConnection);
     
     auto tryReceivedConnection = WaitForNewConnection();
@@ -298,74 +331,70 @@ TEST_CASE_METHOD(
     REQUIRE(payloadIsEqual == true);
 }
 
-// TEST_CASE_METHOD(
-//     FunctionalTestsFixture,
-//     "Ingest to Edge relaying",
-//     "[functional][relay]")
-// {
-//     // TODO: ORCHESTRATOR INIT!
-//     InitConnectionManager();
-//     StartConnectionManagerListening();
+TEST_CASE_METHOD(
+    FunctionalTestsFixture,
+    "Ingest to Edge relaying",
+    "[functional][relay]")
+{
+    InitConnectionManager();
+    InitOrchestrator();
+    StartConnectionManagerListening();
 
-//     ftl_channel_id_t channelId = 1234;
-//     ftl_stream_id_t streamId = 5678;
-//     std::vector<std::byte> streamKey
-//     {
-//         std::byte(0x0f), std::byte(0x0e), std::byte(0x0d), std::byte(0x0c),
-//         std::byte(0x0b), std::byte(0x0a), std::byte(0x09), std::byte(0x08), 
-//         std::byte(0x07), std::byte(0x06), std::byte(0x05), std::byte(0x04), 
-//         std::byte(0x03), std::byte(0x02), std::byte(0x01), std::byte(0x00), 
-//     };
+    ftl_channel_id_t channelId = 1234;
+    ftl_stream_id_t streamId = 5678;
+    std::vector<std::byte> streamKey
+    {
+        std::byte(0x0f), std::byte(0x0e), std::byte(0x0d), std::byte(0x0c),
+        std::byte(0x0b), std::byte(0x0a), std::byte(0x09), std::byte(0x08), 
+        std::byte(0x07), std::byte(0x06), std::byte(0x05), std::byte(0x04), 
+        std::byte(0x03), std::byte(0x02), std::byte(0x01), std::byte(0x00), 
+    };
 
-//     // Connect an ingest node
-//     auto ingestConnections = ConnectAndStartNewClient("ingest");
-//     auto ingestClient = ingestConnections.first;
-//     auto ingestRecv = ingestConnections.second;
+    // Connect an ingest node
+    auto ingestClient = ConnectNewClient("ingest", true);
 
-//     // Connect an edge node
-//     auto edgeConnections = ConnectAndStartNewClient("edge");
-//     auto edgeClient = ingestConnections.first;
-//     auto edgeRecv = ingestConnections.second;
+    // Connect an edge node
+    auto edgeClient = ConnectNewClient("edge", true);
     
-//     // Track when the ingest receives a relay message
-//     std::optional<ConnectionRelayPayload> recvRelayPayload;
-//     std::mutex recvRelayMutex;
-//     std::condition_variable recvRelayCv;
-//     ingestClient->SetOnStreamRelay(
-//         [&recvRelayPayload, &recvRelayCv](ConnectionRelayPayload relayPayload)
-//         {
-//             recvRelayPayload = relayPayload;
-//             recvRelayCv.notify_all();
-//             return ConnectionResult
-//             {
-//                 .IsSuccess = true
-//             };
-//         });
+    // Track when the ingest receives a relay message
+    std::optional<ConnectionRelayPayload> recvRelayPayload;
+    std::mutex recvRelayMutex;
+    std::condition_variable recvRelayCv;
+    ingestClient->SetOnStreamRelay(
+        [&recvRelayPayload, &recvRelayCv](ConnectionRelayPayload relayPayload)
+        {
+            recvRelayPayload = relayPayload;
+            recvRelayCv.notify_all();
+            return ConnectionResult
+            {
+                .IsSuccess = true
+            };
+        });
 
-//     // Subscribe the edge node to the channel
-//     edgeClient->SendChannelSubscription(
-//         ConnectionSubscriptionPayload
-//         {
-//             .IsSubscribe = true,
-//             .ChannelId = channelId,
-//             .StreamKey = streamKey,
-//         });
+    // Subscribe the edge node to the channel
+    edgeClient->SendChannelSubscription(
+        ConnectionSubscriptionPayload
+        {
+            .IsSubscribe = true,
+            .ChannelId = channelId,
+            .StreamKey = streamKey,
+        });
 
-//     // Publish the stream from the ingest
-//     ingestClient->SendStreamPublish(
-//         ConnectionPublishPayload
-//         {
-//             .IsPublish = true,
-//             .ChannelId = channelId,
-//             .StreamId = streamId,
-//         });
+    // Publish the stream from the ingest
+    ingestClient->SendStreamPublish(
+        ConnectionPublishPayload
+        {
+            .IsPublish = true,
+            .ChannelId = channelId,
+            .StreamId = streamId,
+        });
 
-//     // Check to see if we've received the relay message
-//     std::unique_lock<std::mutex> lock(recvRelayMutex);
-//     recvRelayCv.wait_for(lock, std::chrono::milliseconds(5000));
-//     REQUIRE(recvRelayPayload.has_value());
-//     REQUIRE(recvRelayPayload.value().ChannelId == channelId);
-//     REQUIRE(recvRelayPayload.value().StreamId == streamId);
-//     bool streamKeyMatch = (recvRelayPayload.value().StreamKey == streamKey);
-//     REQUIRE(streamKeyMatch == true);
-// }
+    // Check to see if we've received the relay message
+    std::unique_lock<std::mutex> lock(recvRelayMutex);
+    recvRelayCv.wait_for(lock, std::chrono::milliseconds(5000));
+    REQUIRE(recvRelayPayload.has_value());
+    REQUIRE(recvRelayPayload.value().ChannelId == channelId);
+    REQUIRE(recvRelayPayload.value().StreamId == streamId);
+    bool streamKeyMatch = (recvRelayPayload.value().StreamKey == streamKey);
+    REQUIRE(streamKeyMatch == true);
+}

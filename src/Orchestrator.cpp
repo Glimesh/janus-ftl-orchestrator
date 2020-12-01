@@ -137,9 +137,12 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
             std::placeholders::_1));
 
     // Track the connection until we receive the opening intro message
-    std::lock_guard<std::mutex> lock(connectionsMutex);
-    spdlog::info("New connection, awaiting intro...");
-    pendingConnections.insert(connection);
+    {
+        std::lock_guard<std::mutex> lock(connectionsMutex);
+        spdlog::info("New connection, awaiting intro...");
+        pendingConnections.insert(connection);
+    }
+    connection->Start();
 }
 
 #pragma region Connection callback handlers
@@ -177,6 +180,8 @@ ConnectionResult Orchestrator<TConnection>::connectionIntro(
 {
     if (auto strongConnection = connection.lock())
     {
+        // Set the hostname
+        strongConnection->SetHostname(payload.Hostname);
         spdlog::info("FROM {}: Intro from {} v{}.{}.{}, Layer {}, Region {}",
             strongConnection->GetHostname(),
             payload.Hostname,

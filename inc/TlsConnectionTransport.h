@@ -112,9 +112,17 @@ public:
         }
 
         // Spin up a new thread to handle I/O
+        std::promise<bool> sslConnectedPromise;
+        std::future<bool> sslConnectedFuture = sslConnectedPromise.get_future();
         connectionThreadEndedFuture = connectionThreadEndedPromise.get_future();
-        connectionThread = std::thread(&TlsConnectionTransport::connectionThreadBody, this);
+        connectionThread = std::thread(
+            &TlsConnectionTransport::connectionThreadBody,
+            this,
+            std::move(sslConnectedPromise));
         connectionThread.detach();
+
+        // Wait for SSL to finish connecting
+        sslConnectedFuture.get();
     }
 
     void Stop() override
@@ -142,6 +150,7 @@ public:
         if (!isStopping && !isStopped)
         {
             std::lock_guard<std::mutex> lock(writeMutex);
+            spdlog::info("{} ATTEMPT WRITE {} bytes", socketHandle, bytes.size());
             int writeResult = write(writePipeFds[1], bytes.data(), bytes.size());
             if (static_cast<size_t>(writeResult) != bytes.size())
             {
@@ -224,7 +233,7 @@ private:
     /**
      * @brief Thread body for processing SSL socket input/output
      */
-    void connectionThreadBody()
+    void connectionThreadBody(std::promise<bool>&& sslConnectedPromise)
     {
         // Indicate when we've exited this thread
         connectionThreadEndedPromise.set_value_at_thread_exit();
@@ -260,6 +269,7 @@ private:
             else
             {
                 // Unexpected error - close this connection.
+                sslConnectedPromise.set_value(false);
                 closeConnection();
                 return;
             }
@@ -267,6 +277,9 @@ private:
             // Try again
             connectResult = SSL_connect(ssl.get());
         }
+
+        spdlog::info("{} SSL CONNECTED", socketHandle);
+        sslConnectedPromise.set_value(true);
 
         // We're connected. Now wait for input/output.
         char readBuf[BUFFER_SIZE];
@@ -310,19 +323,24 @@ private:
                     {
                     case SSL_ERROR_NONE:
                         // Successfully read!
-                        if (onBytesReceived)
+                        if (bytesRead > 0)
                         {
-                            onBytesReceived(
-                                std::vector<std::byte>(
-                                    reinterpret_cast<std::byte*>(readBuf),
-                                    (reinterpret_cast<std::byte*>(readBuf) + bytesRead)));
+                            if (onBytesReceived)
+                            {
+                                onBytesReceived(
+                                    std::vector<std::byte>(
+                                        reinterpret_cast<std::byte*>(readBuf),
+                                        (reinterpret_cast<std::byte*>(readBuf) + bytesRead)));
+                            }
                         }
                         break;
                     case SSL_ERROR_WANT_READ:
-                        // Didn't finish reading - try again
-                        continue;
+                        // Can't read yet - try again later
+                        spdlog::info("{} SSL_ERROR_WANT_READ", socketHandle);
+                        break;
                     case SSL_ERROR_WANT_WRITE:
                         // Nothing we can do here, continue to next poll
+                        spdlog::info("{} SSL_ERROR_WANT_WRITE", socketHandle);
                         break;
                     case SSL_ERROR_ZERO_RETURN:
                         // Connection closed
@@ -339,6 +357,10 @@ private:
                     if (!SSL_pending(ssl.get()))
                     {
                         break;
+                    }
+                    else
+                    {
+                        spdlog::info("{} SSL_PENDING", socketHandle);
                     }
                 }
             }
@@ -370,6 +392,11 @@ private:
                         (writeError == SSL_ERROR_WANT_WRITE))
                     {
                         // Success!
+                        spdlog::info(
+                            "{} WROTE {} / {} bytes",
+                            socketHandle,
+                            sslWriteResult,
+                            readResult);
                     }
                     else if (writeError == SSL_ERROR_ZERO_RETURN)
                     {
@@ -411,6 +438,10 @@ private:
         if (!isStopped)
         {
             // Once we reach this point, we know the socket has finished closing.
+            // Close our write pipes
+            spdlog::info("{} CLOSED WRITE PIPES", socketHandle);
+            close(writePipeFds[0]);
+            close(writePipeFds[1]);
             isStopped = true;
         }
     }

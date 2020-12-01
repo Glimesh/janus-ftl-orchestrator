@@ -465,6 +465,11 @@ public:
         return hostname;
     }
 
+    void SetHostname(std::string hostname) override
+    {
+        this->hostname = hostname;
+    }
+
 private:
     std::shared_ptr<IConnectionTransport> transport;
     std::vector<std::byte> transportReadBuffer;
@@ -490,37 +495,45 @@ private:
         spdlog::info("{} received {} bytes ...", GetHostname(), bytes.size());
         transportReadBuffer.insert(transportReadBuffer.end(), bytes.begin(), bytes.end());
 
-        // Parse the header if we haven't already
-        if (!parsedTransportMessageHeader.has_value())
+        while (true)
         {
-            // Do we have enough bytes for a header?
-            if (transportReadBuffer.size() >= 4)
+            // Parse the header if we haven't already
+            if (!parsedTransportMessageHeader.has_value())
             {
-                OrchestrationMessageHeader parsedHeader = ParseMessageHeader(transportReadBuffer);
-                parsedTransportMessageHeader.emplace(parsedHeader);
+                // Do we have enough bytes for a header?
+                if (transportReadBuffer.size() >= 4)
+                {
+                    OrchestrationMessageHeader parsedHeader = ParseMessageHeader(transportReadBuffer);
+                    parsedTransportMessageHeader.emplace(parsedHeader);
+                }
+                else
+                {
+                    // We need more bytes before we can deal with this message.
+                    // Wait for our transport to deliver us more juicy data.
+                    return;
+                }
+            }
+            
+            // Do we have all the payload bytes we need to process this message?
+            uint16_t messagePayloadLength = parsedTransportMessageHeader.value().MessagePayloadLength;
+            if ((transportReadBuffer.size() - 4) >= messagePayloadLength)
+            {
+                std::vector<std::byte> messagePayload(
+                    (transportReadBuffer.begin() + 4),
+                    (transportReadBuffer.begin() + 4 + messagePayloadLength));
+
+                // Process the message, then remove the message from the read buffer
+                processMessage(parsedTransportMessageHeader.value(), messagePayload);
+                transportReadBuffer.erase(
+                    transportReadBuffer.begin(),
+                    (transportReadBuffer.begin() + 4 + messagePayloadLength));
+                parsedTransportMessageHeader.reset();
             }
             else
             {
-                // We need more bytes before we can deal with this message.
-                // Wait for our transport to deliver us more juicy data.
+                // We have the message, but not all of the payload. Wait for the rest to come in.
                 return;
             }
-        }
-        
-        // Do we have all the payload bytes we need to process this message?
-        uint16_t messagePayloadLength = parsedTransportMessageHeader.value().MessagePayloadLength;
-        if ((transportReadBuffer.size() - 4) >= messagePayloadLength)
-        {
-            std::vector<std::byte> messagePayload(
-                (transportReadBuffer.begin() + 4),
-                (transportReadBuffer.begin() + 4 + messagePayloadLength));
-
-            // Process the message, then remove the message from the read buffer
-            processMessage(parsedTransportMessageHeader.value(), messagePayload);
-            transportReadBuffer.erase(
-                transportReadBuffer.begin(),
-                (transportReadBuffer.begin() + 4 + messagePayloadLength));
-            parsedTransportMessageHeader.reset();
         }
     }
 
@@ -855,7 +868,9 @@ private:
             .TargetHostname = std::string(
                 (reinterpret_cast<const char*>(payload.data()) + 11),
                 (reinterpret_cast<const char*>(payload.data()) + 11 + hostnameLength)),
-            .StreamKey = std::vector<std::byte>(payload.cbegin() + 11, payload.cend()),
+            .StreamKey = std::vector<std::byte>(
+                (payload.cbegin() + 11 + hostnameLength),
+                payload.cend()),
         };
 
         // Indicate that we received a relay

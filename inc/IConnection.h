@@ -215,4 +215,9 @@ public:
      * @brief Retrieve the hostname of the FTL server represented by this connection
      */
     virtual std::string GetHostname() = 0;
+
+    /**
+     * @brief Set the hostname of the FTL node represented by this connection
+     */
+    virtual void SetHostname(std::string hostname) = 0;
 };
