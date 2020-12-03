@@ -15,6 +15,7 @@
 #include "SubscriptionStore.h"
 
 #include <arpa/inet.h>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -33,13 +34,31 @@ class Orchestrator
 {
 public:
     /* Constructor/Destructor */
-    Orchestrator(std::shared_ptr<IConnectionManager<TConnection>> connectionManager);
+    Orchestrator(std::unique_ptr<IConnectionManager<TConnection>> connectionManager);
 
     /* Public methods */
     /**
      * @brief Performs initialization steps
      */
     void Init();
+
+    /**
+     * @brief Orchestrator will begin listening and handling new connections.
+     * @param readyListeningPromise a promise that is fulfilled as soon as the service
+     *  is actively listening for new connections
+     */
+    void Run(std::promise<void>&& readyListeningPromise = std::promise<void>());
+
+    /**
+     * @brief
+     *  Orchestrator will stop listening, unblocking the Run call and disconnecting all connections.
+     */
+    void Stop();
+
+    /**
+     * @brief Retrieves the ConnectionManager owned by this Orchestrator
+     */
+    const std::unique_ptr<IConnectionManager<TConnection>>& GetConnectionManager();
 
     /**
      * @brief Get connections currently registered with this orchestrator
@@ -57,13 +76,14 @@ public:
 
 private:
     /* Private members */
-    const std::shared_ptr<IConnectionManager<TConnection>> connectionManager;
+    const std::unique_ptr<IConnectionManager<TConnection>> connectionManager;
     StreamStore<TConnection> streamStore;
     std::mutex connectionsMutex;
     std::set<std::shared_ptr<TConnection>> pendingConnections;
     std::set<std::shared_ptr<TConnection>> connections;
     std::mutex streamsMutex;
     SubscriptionStore<TConnection> subscriptions;
+    std::atomic<bool> isStopping { false };
 
     /* Private methods */
     void openRoute(

@@ -111,7 +111,7 @@ public:
     virtual ~IConnection() = default;
 
     /**
-     * @brief Starts the connection in a new thread
+     * @brief Starts the connection
      */
     virtual void Start() = 0;
 

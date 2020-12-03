@@ -131,6 +131,16 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Clears all records
+     */
+    void Clear()
+    {
+        std::lock_guard<std::mutex> lock(streamStoreMutex);
+        streamByChannelId.clear();
+        streamsByIngestConnection.clear();
+    }
+
 private:
     std::mutex streamStoreMutex;
     std::map<ftl_channel_id_t, Stream<TConnection>> streamByChannelId;

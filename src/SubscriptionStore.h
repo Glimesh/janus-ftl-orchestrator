@@ -217,6 +217,16 @@ public:
         }
     }
 
+    /**
+     * @brief Clears all records
+     */
+    void Clear()
+    {
+        std::lock_guard<std::mutex> lock(subscriptionsStoreMutex);
+        subscriptionsByConnection.clear();
+        subscriptionsByChannel.clear();
+    }
+
 private:
     std::mutex subscriptionsStoreMutex;
     std::map<std::shared_ptr<TConnection>, std::set<std::shared_ptr<ChannelSubscription<TConnection>>>>

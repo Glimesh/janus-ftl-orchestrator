@@ -22,9 +22,9 @@ public:
     virtual ~IConnectionTransport() = default;
 
     /**
-     * @brief Starts the connection
+     * @brief Starts the connection transport in a new thread
      */
-    virtual void Start() = 0;
+    virtual void StartAsync() = 0;
 
     /**
      * @brief Shuts down connection

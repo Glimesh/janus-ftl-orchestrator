@@ -57,7 +57,7 @@ public:
 
 
     /* IConnectionTransport */
-    void Start() override
+    void StartAsync() override
     {
         // First, set the socket to non-blocking IO mode
         int socketFlags = fcntl(socketHandle, F_GETFL, 0);
@@ -127,21 +127,24 @@ public:
 
     void Stop() override
     {
+        spdlog::debug("{} Stop() called", socketHandle);
         if (!isStopping && !isStopped)
         {
             isStopping = true;
             SSL_shutdown(ssl.get());
             shutdown(socketHandle, SHUT_RDWR);
             close(socketHandle);
+            spdlog::debug("{} CLOSED: Triggered by local, waiting for thread end...", socketHandle);
             connectionThreadEndedFuture.wait(); // Wait until our connection thread end has ended
-            spdlog::info("{} CLOSED: Triggered by local\n", socketHandle);
+            spdlog::debug("{} CLOSED: Triggered by local, thread ended.", socketHandle);
         }
         else if (isStopping && !isStopped)
         {
-            spdlog::info(
+            spdlog::debug(
                 "{} Requested to stop but we're already stopping... waiting until we're closed",
                 socketHandle);
-            connectionThreadEndedFuture.wait();
+            connectionThreadEndedFuture.wait(); // Wait until our connection thread end has ended
+            spdlog::debug("{} Thread ended.", socketHandle);
         }
     }
 
@@ -150,7 +153,7 @@ public:
         if (!isStopping && !isStopped)
         {
             std::lock_guard<std::mutex> lock(writeMutex);
-            spdlog::info("{} ATTEMPT WRITE {} bytes", socketHandle, bytes.size());
+            spdlog::debug("{} ATTEMPT WRITE {} bytes", socketHandle, bytes.size());
             int writeResult = write(writePipeFds[1], bytes.data(), bytes.size());
             if (static_cast<size_t>(writeResult) != bytes.size())
             {
@@ -278,7 +281,7 @@ private:
             connectResult = SSL_connect(ssl.get());
         }
 
-        spdlog::info("{} SSL CONNECTED", socketHandle);
+        spdlog::debug("{} SSL CONNECTED", socketHandle);
         sslConnectedPromise.set_value(true);
 
         // We're connected. Now wait for input/output.
@@ -336,11 +339,11 @@ private:
                         break;
                     case SSL_ERROR_WANT_READ:
                         // Can't read yet - try again later
-                        spdlog::info("{} SSL_ERROR_WANT_READ", socketHandle);
+                        spdlog::debug("{} SSL_ERROR_WANT_READ", socketHandle);
                         break;
                     case SSL_ERROR_WANT_WRITE:
                         // Nothing we can do here, continue to next poll
-                        spdlog::info("{} SSL_ERROR_WANT_WRITE", socketHandle);
+                        spdlog::debug("{} SSL_ERROR_WANT_WRITE", socketHandle);
                         break;
                     case SSL_ERROR_ZERO_RETURN:
                         // Connection closed
@@ -360,7 +363,7 @@ private:
                     }
                     else
                     {
-                        spdlog::info("{} SSL_PENDING", socketHandle);
+                        spdlog::debug("{} SSL_PENDING", socketHandle);
                     }
                 }
             }
@@ -392,7 +395,7 @@ private:
                         (writeError == SSL_ERROR_WANT_WRITE))
                     {
                         // Success!
-                        spdlog::info(
+                        spdlog::debug(
                             "{} WROTE {} / {} bytes",
                             socketHandle,
                             sslWriteResult,
@@ -421,16 +424,16 @@ private:
      */
     void closeConnection()
     {
-        // TODO: CLOSE OUR WRITE PIPES!
         // Avoid closing the socket twice (in case we were the ones who closed it)
         if (!isStopping)
         {
             isStopping = true;
             shutdown(socketHandle, SHUT_RDWR);
             close(socketHandle);
-            spdlog::info("{} CLOSED: Triggered by remote\n", socketHandle);
+            spdlog::debug("{} CLOSED: Triggered by remote\n", socketHandle);
             if (onConnectionClosed)
             {
+                spdlog::debug("{} transport running onConnectionClosed callback...", socketHandle);
                 onConnectionClosed();
             }
         }
@@ -439,7 +442,7 @@ private:
         {
             // Once we reach this point, we know the socket has finished closing.
             // Close our write pipes
-            spdlog::info("{} CLOSED WRITE PIPES", socketHandle);
+            spdlog::debug("{} CLOSED WRITE PIPES", socketHandle);
             close(writePipeFds[0]);
             close(writePipeFds[1]);
             isStopped = true;
@@ -456,7 +459,7 @@ private:
         size_t identity_len,
         SSL_SESSION **sess)
     {
-        spdlog::info(
+        spdlog::debug(
             "sslPskFindSession: Using key {}",
             spdlog::to_hex(preSharedKey.begin(), preSharedKey.end()));
 
@@ -515,7 +518,7 @@ private:
         size_t* idlen,
         SSL_SESSION** sess)
     {
-        spdlog::info(
+        spdlog::debug(
             "sslPskUseSession: Using key {}",
             spdlog::to_hex(preSharedKey.begin(), preSharedKey.end()));
 

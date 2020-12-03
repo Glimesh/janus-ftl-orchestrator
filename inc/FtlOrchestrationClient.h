@@ -65,7 +65,6 @@ public:
         {
             throw std::runtime_error("Could not connect to Orchestration service on given host");
         }
-        printf("%d CONNECT\n", socketHandle);
 
         // Fire up a TlsConnectionTransport to handle TLS on this socket
         std::shared_ptr<TlsConnectionTransport> transport = 
@@ -74,6 +73,9 @@ public:
                 socketHandle,
                 *(reinterpret_cast<sockaddr_in*>(targetAddr.ai_addr)),
                 preSharedKey);
+
+        // We're done with this by now
+        freeaddrinfo(addrLookup);
 
         // Create an FtlConnection on top of this transport
         std::shared_ptr<FtlConnection> ftlConnection = 

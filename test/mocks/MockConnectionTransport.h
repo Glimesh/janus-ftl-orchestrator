@@ -48,7 +48,7 @@ public:
     }
 
     /* IConnectionTransport */
-    void Start() override
+    void StartAsync() override
     { }
 
     void Stop() override

@@ -19,9 +19,9 @@
 #pragma region Constructor/Destructor
 template <class TConnection>
 Orchestrator<TConnection>::Orchestrator(
-    std::shared_ptr<IConnectionManager<TConnection>> connectionManager
+    std::unique_ptr<IConnectionManager<TConnection>> connectionManager
 ) : 
-    connectionManager(connectionManager)
+    connectionManager(std::move(connectionManager))
 { }
 #pragma endregion
 
@@ -32,6 +32,60 @@ void Orchestrator<TConnection>::Init()
     // Set IConnectionManager callbacks
     connectionManager->SetOnNewConnection(
         std::bind(&Orchestrator::newConnection, this, std::placeholders::_1));
+
+    connectionManager->Init();
+}
+
+template <class TConnection>
+void Orchestrator<TConnection>::Run(std::promise<void>&& readyListeningPromise)
+{
+    connectionManager->Listen(std::move(readyListeningPromise)); // This call will block
+
+    // If we've reached this point, we have stopped listening, and should disconnect all 
+    // outstanding connections.
+    if (!isStopping)
+    {
+        throw std::runtime_error("Connection manager stopped listening unexpectedly");
+    }
+
+    // Take a copy of all active connections - avoid holding a lock while stopping connections,
+    // or we might deadlock if we catch a connection waiting on a lock to try to remove itself!
+    std::set<std::shared_ptr<TConnection>> activeConnections;
+    {
+        std::lock_guard<std::mutex> lock(connectionsMutex);
+        activeConnections.insert(pendingConnections.begin(), pendingConnections.end());
+        activeConnections.insert(connections.begin(), connections.end());
+    }
+    for (const auto& connection : activeConnections)
+    {
+        connection->Stop();
+    }
+    
+    // *Now* we can lock and clear
+    {
+        std::lock_guard<std::mutex> lock(connectionsMutex);
+        pendingConnections.clear();
+        connections.clear();
+    }
+
+    // Clear all stores
+    streamStore.Clear();
+    subscriptions.Clear();
+}
+
+template <class TConnection>
+void Orchestrator<TConnection>::Stop()
+{
+    isStopping = true; // Indicate that we're stopping so we don't handle new connections
+                       // or closed events from connections we're getting rid of
+    connectionManager->StopListening();
+}
+
+template <class TConnection>
+const std::unique_ptr<IConnectionManager<TConnection>>&
+    Orchestrator<TConnection>::GetConnectionManager()
+{
+    return connectionManager;
 }
 
 template <class TConnection>
@@ -139,7 +193,7 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
     // Track the connection until we receive the opening intro message
     {
         std::lock_guard<std::mutex> lock(connectionsMutex);
-        spdlog::info("New connection, awaiting intro...");
+        spdlog::info("Orchestrator: New connection, pending intro...");
         pendingConnections.insert(connection);
     }
     connection->Start();
@@ -149,9 +203,15 @@ void Orchestrator<TConnection>::newConnection(std::shared_ptr<TConnection> conne
 template <class TConnection>
 void Orchestrator<TConnection>::connectionClosed(std::weak_ptr<TConnection> connection)
 {
+    // Don't handle closed events if we're stopping, since we're clearing out our connections
+    if (isStopping)
+    {
+        return;
+    }
+
     if (auto strongConnection = connection.lock())
     {
-        spdlog::info("Connection closed to {}", strongConnection->GetHostname());
+        spdlog::info("Orchestrator: Connection closed to {}", strongConnection->GetHostname());
 
         // First, clear any active routes to this connection
         for (const auto& sub : subscriptions.GetSubscriptions(strongConnection))
@@ -182,7 +242,8 @@ ConnectionResult Orchestrator<TConnection>::connectionIntro(
     {
         // Set the hostname
         strongConnection->SetHostname(payload.Hostname);
-        spdlog::info("FROM {}: Intro from {} v{}.{}.{}, Layer {}, Region {}",
+        spdlog::info(
+            "Orchestrator: Intro from {}: Host '{}', v{}.{}.{}, Layer '{}', Region '{}'",
             strongConnection->GetHostname(),
             payload.Hostname,
             payload.VersionMajor,
@@ -211,7 +272,7 @@ ConnectionResult Orchestrator<TConnection>::connectionOutro(
     if (auto strongConnection = connection.lock())
     {
         spdlog::info(
-            "FROM {}: Outro '{}'",
+            "Orchestrator: Outro from {}: '{}'",
             strongConnection->GetHostname(),
             payload.DisconnectReason);
         return ConnectionResult
@@ -230,7 +291,7 @@ ConnectionResult Orchestrator<TConnection>::connectionNodeState(
     if (auto strongConnection = connection.lock())
     {
         spdlog::info(
-            "FROM {}: Node State, load: {} / {}",
+            "Orchestrator: Node State from {}: Load: {} / {}",
             strongConnection->GetHostname(),
             payload.CurrentLoad,
             payload.MaximumLoad);
@@ -252,7 +313,7 @@ ConnectionResult Orchestrator<TConnection>::connectionChannelSubscription(
         if (payload.IsSubscribe)
         {
             spdlog::info(
-                "FROM {}: Subscribe to channel {}",
+                "Orchestrator: Subscribe from {}: Channel: {}",
                 strongConnection->GetHostname(),
                 payload.ChannelId);
 
@@ -284,7 +345,7 @@ ConnectionResult Orchestrator<TConnection>::connectionChannelSubscription(
         else
         {
             spdlog::info(
-                "FROM {}: Unsubscribe from channel {}",
+                "Orchestrator: Unsubcribe from {}: Channel: {}",
                 strongConnection->GetHostname(),
                 payload.ChannelId);
 
@@ -318,7 +379,7 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
         if (payload.IsPublish)
         {
             spdlog::info(
-                "FROM {}: Stream published, channel {} / stream {}",
+                "Orchestrator: Publish from {}: Channel {}, Stream {}",
                 strongConnection->GetHostname(),
                 payload.ChannelId,
                 payload.StreamId);
@@ -349,7 +410,7 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
         else
         {
             spdlog::info(
-                "FROM {}: Stream unpublished, channel {} / stream {}",
+                "Orchestrator: Unpublish from {}: Channel {}, Stream {}",
                 strongConnection->GetHostname(),
                 payload.ChannelId,
                 payload.StreamId);
@@ -364,7 +425,7 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
             }
 
             spdlog::error(
-                "{} indicated that stream channel {} / stream {} was removed, "
+                "Orchestrator: {} indicated that stream channel {} / stream {} was removed, "
                 "but this stream could not be found.",
                 strongConnection->GetHostname(),
                 payload.ChannelId,

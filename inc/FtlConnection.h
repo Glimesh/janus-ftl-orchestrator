@@ -38,12 +38,6 @@ public:
         hostname(hostname)
     { }
 
-    ~FtlConnection()
-    {
-        // If we haven't already stopped, this should handle it.
-        Stop();
-    }
-
     /* Static methods */
     /**
      * @brief Attempts to parse an Orchestration Protocol Message Header out of the given bytes
@@ -258,8 +252,8 @@ public:
                 std::placeholders::_1));
         transport->SetOnConnectionClosed(std::bind(&FtlConnection::onTransportConnectionClosed, this));
 
-        // Start the transport
-        transport->Start();
+        // Start the transport thread
+        transport->StartAsync();
     }
 
     void Stop() override
@@ -492,7 +486,7 @@ private:
     void onTransportBytesReceived(const std::vector<std::byte>& bytes)
     {
         // Add received bytes to our buffer
-        spdlog::info("{} received {} bytes ...", GetHostname(), bytes.size());
+        spdlog::debug("{} received {} bytes ...", GetHostname(), bytes.size());
         transportReadBuffer.insert(transportReadBuffer.end(), bytes.begin(), bytes.end());
 
         while (true)
