@@ -20,6 +20,9 @@ int main(int argc, char* argv[])
     auto testLoggingSink = std::make_shared<TestSink<std::mutex>>();
     auto testLogger = std::make_shared<spdlog::logger>("testlogger", testLoggingSink);
     spdlog::set_default_logger(testLogger);
+#ifdef DEBUG
+    spdlog::set_level(spdlog::level::trace);
+#endif
 
     // Test!
     int result = Catch::Session().run(argc, argv);
