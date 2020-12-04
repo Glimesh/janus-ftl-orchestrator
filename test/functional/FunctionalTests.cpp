@@ -87,7 +87,7 @@ public:
     }
 
 protected:
-    const int WAIT_TIMEOUT_MS = 1000;
+    const std::chrono::milliseconds WAIT_TIMEOUT = std::chrono::milliseconds(1000);
     const std::vector<std::byte> preSharedKey;
     const std::shared_ptr<Orchestrator<FtlConnection>> orchestrator;
     std::thread orchestratorThread;
@@ -149,7 +149,7 @@ TEST_CASE_METHOD(
 
     // Check to see if we've received the relay message
     std::unique_lock<std::mutex> lock(recvRelayMutex);
-    recvRelayCv.wait_for(lock, std::chrono::milliseconds(WAIT_TIMEOUT_MS));
+    recvRelayCv.wait_for(lock, WAIT_TIMEOUT);
     REQUIRE(recvRelayPayload.has_value());
     REQUIRE(recvRelayPayload.value().IsStartRelay == true);
     REQUIRE(recvRelayPayload.value().ChannelId == channelId);
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(
     
     // Check to make sure we've received the stop relay message
     lock.lock();
-    recvRelayCv.wait_for(lock, std::chrono::milliseconds(WAIT_TIMEOUT_MS));
+    recvRelayCv.wait_for(lock, WAIT_TIMEOUT);
     REQUIRE(recvRelayPayload.has_value());
     REQUIRE(recvRelayPayload.value().IsStartRelay == false);
     REQUIRE(recvRelayPayload.value().ChannelId == channelId);
@@ -240,7 +240,7 @@ TEST_CASE_METHOD(
 
     // Check to see if we've received the relay message
     std::unique_lock<std::mutex> lock(recvRelayMutex);
-    recvRelayCv.wait_for(lock, std::chrono::milliseconds(WAIT_TIMEOUT_MS));
+    recvRelayCv.wait_for(lock, WAIT_TIMEOUT);
     REQUIRE(recvRelayPayload.has_value());
     REQUIRE(recvRelayPayload.value().IsStartRelay == true);
     REQUIRE(recvRelayPayload.value().ChannelId == channelId);
@@ -256,7 +256,7 @@ TEST_CASE_METHOD(
     
     // Check to make sure we've received the stop relay message
     lock.lock();
-    recvRelayCv.wait_for(lock, std::chrono::milliseconds(WAIT_TIMEOUT_MS));
+    recvRelayCv.wait_for(lock, WAIT_TIMEOUT);
     REQUIRE(recvRelayPayload.has_value());
     REQUIRE(recvRelayPayload.value().IsStartRelay == false);
     REQUIRE(recvRelayPayload.value().ChannelId == channelId);
