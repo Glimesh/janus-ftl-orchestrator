@@ -388,7 +388,7 @@ public:
     {
         std::vector<std::byte> messagePayload
         {
-            static_cast<uint8_t>(payload.IsStartRelay),
+            static_cast<std::byte>(payload.IsStartRelay),
         };
         messagePayload.reserve(11 + payload.TargetHostname.size() + payload.StreamKey.size());
         auto channelIdBytes = ConvertToNetworkPayload(payload.ChannelId);

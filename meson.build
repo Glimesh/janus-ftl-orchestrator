@@ -1,4 +1,17 @@
-project('janus-ftl-orchestrator', 'cpp')
+project(
+    'janus-ftl-orchestrator',
+    'cpp',
+    default_options: [
+        'cpp_std=c++2a',
+        'cpp_args=-Wno-unknown-pragmas',
+        'werror=true',
+    ]
+)
+
+# Set the DEBUG define if we're a debug build
+if get_option('buildtype').startswith('debug')
+    add_project_arguments('-DDEBUG', language : 'cpp')
+endif
 
 sources = files([
     'src/Configuration.cpp',
@@ -14,7 +27,6 @@ deps = [
     subproject('spdlog').get_variable('spdlog_dep'), # use wrapped copy of spdlog
 ]
 
-cppargs = ['-std=c++20', '-Wno-unknown-pragmas']
 incdir = include_directories(['src', 'inc'])
 
 executable(
@@ -22,9 +34,8 @@ executable(
     sources,
     include_directories: incdir,
     dependencies: deps,
-    cpp_args: cppargs,
     install: true,
-    install_dir: '/usr/local/bin'
+    install_dir: '/usr/local/bin',
 )
 
 testsources = files([
@@ -45,5 +56,4 @@ executable(
     testsources,
     include_directories: incdir,
     dependencies: deps,
-    cpp_args: cppargs
 )
