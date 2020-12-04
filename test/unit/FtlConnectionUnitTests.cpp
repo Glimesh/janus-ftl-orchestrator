@@ -42,26 +42,26 @@ TEST_CASE("Intro requests are recognized", "[connection]")
         });
 
     // Write an intro connection message
-    std::vector<uint8_t> payloadBuffer = {
+    std::vector<std::byte> payloadBuffer = {
         // Version Major
-        versionMajor,
+        std::byte{versionMajor},
         // Version Minor
-        versionMinor,
+        std::byte{versionMinor},
         // Revision
-        versionRevision,
+        std::byte{versionRevision},
         // Relay layer
-        relayLayer,
+        std::byte{relayLayer},
     };
     auto regionCodeLength = 
         FtlConnection::ConvertToNetworkPayload(static_cast<uint16_t>(regionCode.size()));
     payloadBuffer.insert(payloadBuffer.end(), regionCodeLength.begin(), regionCodeLength.end());
     // Add the region code to the payload
-    payloadBuffer.insert(payloadBuffer.end(), regionCode.begin(), regionCode.end());
+    FtlConnection::AppendStringToPayload(payloadBuffer, regionCode);
     // Add the hostname to the payload
-    payloadBuffer.insert(payloadBuffer.end(), hostname.begin(), hostname.end());
+    FtlConnection::AppendStringToPayload(payloadBuffer, hostname);
 
     // Construct the message
-    std::vector<uint8_t> messageBuffer = FtlConnection::SerializeMessageHeader(
+    std::vector<std::byte> messageBuffer = FtlConnection::SerializeMessageHeader(
         {
             .MessageDirection = OrchestrationMessageDirectionKind::Request,
             .MessageFailure = false,
@@ -73,7 +73,8 @@ TEST_CASE("Intro requests are recognized", "[connection]")
     mockTransport->MockSetReadBuffer(messageBuffer);
 
     // Verify response
-    std::optional<std::vector<uint8_t>> response = mockTransport->WaitForWrite();
+    // TODO: This is usually synchronous, so we shouldn't need to wait for write here.
+    std::optional<std::vector<std::byte>> response = mockTransport->WaitForWrite();
     REQUIRE(response.has_value());
     OrchestrationMessageHeader responseHeader = FtlConnection::ParseMessageHeader(response.value());
     REQUIRE(responseHeader.MessageDirection == OrchestrationMessageDirectionKind::Response);
@@ -118,7 +119,7 @@ TEST_CASE("Outro requests are recognized", "[connection]")
         });
 
     // Construct the message
-    std::vector<uint8_t> messageBuffer = FtlConnection::SerializeMessageHeader(
+    std::vector<std::byte> messageBuffer = FtlConnection::SerializeMessageHeader(
         {
             .MessageDirection = OrchestrationMessageDirectionKind::Request,
             .MessageFailure = false,
@@ -127,13 +128,14 @@ TEST_CASE("Outro requests are recognized", "[connection]")
             .MessagePayloadLength = static_cast<uint16_t>(sendReason.size()),
         });
     // Add the reason to the message payload
-    messageBuffer.insert(messageBuffer.end(), sendReason.begin(), sendReason.end());
+    FtlConnection::AppendStringToPayload(messageBuffer, sendReason);
 
     // Send to the FtlConnection
     mockTransport->MockSetReadBuffer(messageBuffer);
 
     // Verify response
-    std::optional<std::vector<uint8_t>> response = mockTransport->WaitForWrite();
+    // TODO: This is usually synchronous, so we shouldn't need to wait for write here.
+    std::optional<std::vector<std::byte>> response = mockTransport->WaitForWrite();
     REQUIRE(response.has_value());
     OrchestrationMessageHeader responseHeader = FtlConnection::ParseMessageHeader(response.value());
     REQUIRE(responseHeader.MessageDirection == OrchestrationMessageDirectionKind::Response);
@@ -188,7 +190,7 @@ TEST_CASE("Channel subscription requests are recognized", "[connection]")
         });
 
     // Construct the message
-    std::vector<uint8_t> messageBuffer = FtlConnection::SerializeMessageHeader(
+    std::vector<std::byte> messageBuffer = FtlConnection::SerializeMessageHeader(
         {
             .MessageDirection = OrchestrationMessageDirectionKind::Request,
             .MessageFailure = false,
@@ -197,21 +199,17 @@ TEST_CASE("Channel subscription requests are recognized", "[connection]")
             .MessagePayloadLength = static_cast<uint16_t>(5 + sendStreamKey.size()),
         });
     // Add the payload
-    messageBuffer.push_back(static_cast<uint8_t>(sendIsSubscribe));
-    std::vector<uint8_t> channelIdBytes = FtlConnection::ConvertToNetworkPayload(sendChannelId);
+    messageBuffer.push_back(static_cast<std::byte>(sendIsSubscribe));
+    std::vector<std::byte> channelIdBytes = FtlConnection::ConvertToNetworkPayload(sendChannelId);
     messageBuffer.insert(messageBuffer.end(), channelIdBytes.begin(), channelIdBytes.end());
-    // TODO: use std::byte everywhere to avoid these annoying casts...
-    messageBuffer.reserve(messageBuffer.size() + sendStreamKey.size());
-    for (const auto& keyByte : sendStreamKey)
-    {
-        messageBuffer.push_back(static_cast<uint8_t>(keyByte));
-    }
+    messageBuffer.insert(messageBuffer.end(), sendStreamKey.begin(), sendStreamKey.end());
 
     // Send to the FtlConnection
     mockTransport->MockSetReadBuffer(messageBuffer);
 
     // Verify response
-    std::optional<std::vector<uint8_t>> response = mockTransport->WaitForWrite();
+    // TODO: This is usually synchronous, so we shouldn't need to wait for write here.
+    std::optional<std::vector<std::byte>> response = mockTransport->WaitForWrite();
     REQUIRE(response.has_value());
     OrchestrationMessageHeader responseHeader = FtlConnection::ParseMessageHeader(response.value());
     REQUIRE(responseHeader.MessageDirection == OrchestrationMessageDirectionKind::Response);
@@ -256,7 +254,7 @@ TEST_CASE("Stream publish requests are recognized", "[connection]")
         });
 
     // Construct the message
-    std::vector<uint8_t> messageBuffer = FtlConnection::SerializeMessageHeader(
+    std::vector<std::byte> messageBuffer = FtlConnection::SerializeMessageHeader(
         {
             .MessageDirection = OrchestrationMessageDirectionKind::Request,
             .MessageFailure = false,
@@ -265,17 +263,18 @@ TEST_CASE("Stream publish requests are recognized", "[connection]")
             .MessagePayloadLength = 9,
         });
     // Add the payload
-    messageBuffer.push_back(static_cast<uint8_t>(sendIsPublish));
-    std::vector<uint8_t> channelIdBytes = FtlConnection::ConvertToNetworkPayload(sendChannelId);
+    messageBuffer.push_back(static_cast<std::byte>(sendIsPublish));
+    std::vector<std::byte> channelIdBytes = FtlConnection::ConvertToNetworkPayload(sendChannelId);
     messageBuffer.insert(messageBuffer.end(), channelIdBytes.begin(), channelIdBytes.end());
-    std::vector<uint8_t> streamIdBytes = FtlConnection::ConvertToNetworkPayload(sendStreamId);
+    std::vector<std::byte> streamIdBytes = FtlConnection::ConvertToNetworkPayload(sendStreamId);
     messageBuffer.insert(messageBuffer.end(), streamIdBytes.begin(), streamIdBytes.end());
 
     // Send to the FtlConnection
     mockTransport->MockSetReadBuffer(messageBuffer);
 
     // Verify response
-    std::optional<std::vector<uint8_t>> response = mockTransport->WaitForWrite();
+    // TODO: This is usually synchronous, so we shouldn't need to wait for write here.
+    std::optional<std::vector<std::byte>> response = mockTransport->WaitForWrite();
     REQUIRE(response.has_value());
     OrchestrationMessageHeader responseHeader = FtlConnection::ParseMessageHeader(response.value());
     REQUIRE(responseHeader.MessageDirection == OrchestrationMessageDirectionKind::Response);

@@ -28,25 +28,30 @@ protected:
         case spdlog::level::debug:
         case spdlog::level::info:
         {
-            // BUG: Turns out that this makes Catch2 unhappy when called from
-            // multiple threads.
-            // possible workaround: disable this spdlog sink when in multi-threaded test cases?
-            //UNSCOPED_INFO(formattedMsg);
+            // BUG: Turns out calling UNSCOPED_INFO from multiple threads
+            // makes Catch2 unhappy.
+            // https://github.com/catchorg/Catch2/issues/1043
+            // UNSCOPED_INFO(formattedMsg);
+            printf("%s", formattedMsg.c_str());
             break;
         }
         case spdlog::level::warn:
         {
-            // BUG: Turns out that this makes Catch2 unhappy when called from
-            // multiple threads.
-            //WARN(formattedMsg);
+            // BUG: Turns out calling WARN from multiple threads
+            // makes Catch2 unhappy.
+            // https://github.com/catchorg/Catch2/issues/1043
+            // WARN(formattedMsg);
+            printf("%s", formattedMsg.c_str());
             break;
         }
         case spdlog::level::err:
         case spdlog::level::critical:
         {
-            // BUG: Turns out that this makes Catch2 unhappy when called from
-            // multiple threads.
-            //FAIL_CHECK(formattedMsg);
+            // BUG: Turns out calling FAIL_CHECK from multiple threads
+            // makes Catch2 unhappy.
+            // https://github.com/catchorg/Catch2/issues/1043
+            // FAIL_CHECK(formattedMsg);
+            printf("%s", formattedMsg.c_str());
             break;
         }
         default:

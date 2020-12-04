@@ -31,7 +31,6 @@ protected:
     static const uint8_t protocolVersionMajor = 0;
     static const uint8_t protocolVersionMinor = 0;
     static const uint8_t protocolVersionRevision = 0;
-    std::shared_ptr<MockConnectionManager<MockConnection>> connectionManager;
     std::unique_ptr<Orchestrator<MockConnection>> orchestrator;
 
     /**
@@ -39,9 +38,8 @@ protected:
      */
     void init()
     {
-        connectionManager = std::make_shared<MockConnectionManager<MockConnection>>();
-        connectionManager->Init();
-        orchestrator = std::make_unique<Orchestrator<MockConnection>>(connectionManager);
+        orchestrator = std::make_unique<Orchestrator<MockConnection>>(
+            std::make_unique<MockConnectionManager<MockConnection>>());
         orchestrator->Init();
     }
 
@@ -84,6 +82,9 @@ protected:
         const std::shared_ptr<MockConnection>& connection,
         bool fireIntro = true)
     {
+        const auto& connectionManager = 
+            reinterpret_cast<const std::unique_ptr<MockConnectionManager<MockConnection>>&>(
+                orchestrator->GetConnectionManager());
         connectionManager->MockFireNewConnection(connection);
         if (fireIntro)
         {

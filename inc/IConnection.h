@@ -32,6 +32,17 @@ struct ConnectionIntroPayload
     uint8_t RelayLayer;
     std::string RegionCode;
     std::string Hostname;
+
+    bool operator==(const ConnectionIntroPayload& c)
+    {
+        return (
+            (VersionMajor == c.VersionMajor) &&
+            (VersionMinor == c.VersionMinor) &&
+            (VersionRevision == c.VersionRevision) &&
+            (RelayLayer == c.RelayLayer) &&
+            (RegionCode == c.RegionCode) && 
+            (Hostname == c.Hostname));
+    }
 };
 
 struct ConnectionOutroPayload
@@ -100,7 +111,7 @@ public:
     virtual ~IConnection() = default;
 
     /**
-     * @brief Starts the connection in a new thread
+     * @brief Starts the connection
      */
     virtual void Start() = 0;
 
@@ -204,4 +215,9 @@ public:
      * @brief Retrieve the hostname of the FTL server represented by this connection
      */
     virtual std::string GetHostname() = 0;
+
+    /**
+     * @brief Set the hostname of the FTL node represented by this connection
+     */
+    virtual void SetHostname(std::string hostname) = 0;
 };

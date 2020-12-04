@@ -242,6 +242,11 @@ public:
         return hostname;
     }
 
+    void SetHostname(std::string hostname) override
+    {
+        this->hostname = hostname;
+    }
+
 private:
     std::function<void(void)> onConnectionClosed;
     connection_cb_intro_t onIntro;

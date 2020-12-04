@@ -58,6 +58,10 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
         throw std::runtime_error(errStr.str());
     }
 
+    // Allow re-use so we don't get hung up trying to rebind
+    int reUseOption = 1;
+    setsockopt(listenSocketHandle, SOL_SOCKET, SO_REUSEADDR, &reUseOption, sizeof(reUseOption));
+
     // Bind socket
     if (bind(
         listenSocketHandle,
@@ -71,6 +75,8 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
         throw std::runtime_error(errStr.str());
     }
 
+    spdlog::debug("TlsConnectionManager: Bound on fd {}", listenSocketHandle);
+
     // Listen on socket
     if (listen(listenSocketHandle, SOCKET_LISTEN_QUEUE_LIMIT) < 0)
     {
@@ -82,7 +88,7 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
     }
 
     // Accept new connections
-    spdlog::info("Listening on port {}...", listenPort);
+    spdlog::info("TlsConnectionManager: Listening on port {}...", listenPort);
     readyPromise.set_value(); // Indicate to promise that we are now listening
     while (true)
     {
@@ -99,7 +105,7 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
             if (error == EINVAL)
             {
                 // This means we've closed the listen handle
-                spdlog::info("TLS Connection Manager shutting down...");
+                spdlog::info("TlsConnectionManager: Shutting down...");
                 break;
             }
             std::stringstream errStr;
@@ -108,7 +114,7 @@ void TlsConnectionManager<T>::Listen(std::promise<void>&& readyPromise)
             throw std::runtime_error(errStr.str());
         }
 
-        spdlog::info("Accepted new connection...");
+        spdlog::info("TlsConnectionManager: Accepted new connection on fd {}", clientHandle);
 
         std::shared_ptr<TlsConnectionTransport> transport = 
             std::make_shared<TlsConnectionTransport>(
@@ -135,6 +141,7 @@ void TlsConnectionManager<T>::StopListening()
 {
     shutdown(listenSocketHandle, SHUT_RDWR);
     close(listenSocketHandle);
+    spdlog::debug("TlsConnectionManager: Closed listening on fd {}", listenSocketHandle);
 }
 
 template <class T>

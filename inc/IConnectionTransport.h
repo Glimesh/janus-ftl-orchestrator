@@ -22,9 +22,9 @@ public:
     virtual ~IConnectionTransport() = default;
 
     /**
-     * @brief Starts the connection
+     * @brief Starts the connection transport in a new thread
      */
-    virtual void Start() = 0;
+    virtual void StartAsync() = 0;
 
     /**
      * @brief Shuts down connection
@@ -32,20 +32,21 @@ public:
     virtual void Stop() = 0;
 
     /**
-     * @brief Read bytes from the transport
-     * @return std::vector<uint8_t> bytes read
-     */
-    virtual std::vector<uint8_t> Read() = 0;
-
-    /**
      * @brief Write bytes to the transport
      * @param bytes bytes to be written
      */
-    virtual void Write(const std::vector<uint8_t>& bytes) = 0;
+    virtual void Write(const std::vector<std::byte>& bytes) = 0;
 
     /**
      * @brief Sets the callback that will fire when this connection has been closed.
      * @param onConnectionClosed callback to fire on connection close
      */
     virtual void SetOnConnectionClosed(std::function<void(void)> onConnectionClosed) = 0;
+
+    /**
+     * @brief Set the callback that will fire when this connection has received bytes
+     * @param onBytesReceived callback to fire when bytes received
+     */
+    virtual void SetOnBytesReceived(
+        std::function<void(const std::vector<std::byte>&)> onBytesReceived) = 0;
 };
