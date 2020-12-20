@@ -51,6 +51,11 @@ Configuration is achieved through environment variables.
 | :--------------------- | :--------------- | :---------------- |
 | `FTL_ORCHESTRATOR_PSK` | String of arbitrary hex values (ex. `001122334455ff`) | This is the pre-shared key used to establish a secure TLS1.3 connection. |
 
+# Dockering
+
+    docker build -t ftl-orchestrator
+    docker run --rm --env FTL_ORCHESTRATOR_PSK=001122334455ff ftl-orchestrator
+
 # Testing
 
 Tests are written with the help of [Catch2](https://github.com/catchorg/Catch2) and are located in the `test/` directory. They are built into the `janus-ftl-orchestrator-test` binary.
