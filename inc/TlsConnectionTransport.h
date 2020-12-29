@@ -278,7 +278,7 @@ private:
             }
             
             // Try again
-            connectResult = SSL_connect(ssl.get());
+            connectResult = isServer ? SSL_accept(ssl.get()) : SSL_connect(ssl.get());
         }
 
         spdlog::debug("{} SSL CONNECTED", socketHandle);
