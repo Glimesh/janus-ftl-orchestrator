@@ -14,6 +14,7 @@
 
 #include <arpa/inet.h>
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <mutex>
@@ -180,6 +181,8 @@ public:
 private:
     /* Static members */
     static constexpr int BUFFER_SIZE = 512;
+    static constexpr std::chrono::milliseconds CONNECT_TIMEOUT = 
+        std::chrono::milliseconds(2500);
     /* Private members */
     const bool isServer;
     const int socketHandle;
@@ -241,10 +244,25 @@ private:
         // Indicate when we've exited this thread
         connectionThreadEndedPromise.set_value_at_thread_exit();
 
+        // Keep track of how long it takes to connect, so we can time out
+        std::chrono::time_point<std::chrono::steady_clock> connectStartTime = 
+            std::chrono::steady_clock::now();
+
         // First, we need to connect.
         int connectResult = isServer ? SSL_accept(ssl.get()) : SSL_connect(ssl.get());
         while (connectResult == -1)
         {
+            // Have we taken too long?
+            auto elapsedTime = (std::chrono::steady_clock::now() - connectStartTime);
+            if (elapsedTime > CONNECT_TIMEOUT)
+            {
+                // Whoops, took too long to connect.
+                spdlog::debug("{} SSL negotiation timed out");
+                sslConnectedPromise.set_value(false);
+                closeConnection();
+                return;
+            }
+
             // We're not done connecting yet - figure out what we're waiting on
             int connectError = SSL_get_error(ssl.get(), connectResult);
             if (connectError == SSL_ERROR_WANT_READ)
