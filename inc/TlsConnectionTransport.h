@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <atomic>
 #include <chrono>
+#include <fcntl.h>
 #include <filesystem>
 #include <functional>
 #include <mutex>
