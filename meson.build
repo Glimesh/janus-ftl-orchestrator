@@ -20,11 +20,18 @@ sources = files([
     'src/TlsConnectionManager.cpp',
 ])
 
+# Pull in subprojects
+fmt_wrap = subproject('fmt', default_options: 'default_library=static')
+meson.override_dependency('fmt', fmt_wrap.get_variable('fmt_dep')) # Use our copy of fmt for spdlog
+spdlog_wrap = subproject('spdlog', default_options: ['default_library=static', 'compile_library=true', 'external_fmt=true'] )
+catch2_wrap = subproject('catch2')
+
 deps = [
     dependency('libssl'),
     dependency('libcrypto'),
-    dependency('catch2', fallback: ['catch2', 'catch2_dep']),
-    subproject('spdlog').get_variable('spdlog_dep'), # use wrapped copy of spdlog
+    # Meson wrapped dependencies
+    fmt_wrap.get_variable('fmt_dep'),
+    spdlog_wrap.get_variable('spdlog_dep'),
 ]
 
 incdir = include_directories(['src', 'inc'])
@@ -32,6 +39,7 @@ incdir = include_directories(['src', 'inc'])
 executable(
     'janus-ftl-orchestrator',
     sources,
+    cpp_pch: 'pch/pch.h',
     include_directories: incdir,
     dependencies: deps,
     install: true,
@@ -51,9 +59,19 @@ testsources = files([
     'src/TlsConnectionManager.cpp',
 ])
 
+testdeps = [
+    dependency('libssl'),
+    dependency('libcrypto'),
+    # Meson wrapped dependencies
+    fmt_wrap.get_variable('fmt_dep'),
+    spdlog_wrap.get_variable('spdlog_dep'),
+    catch2_wrap.get_variable('catch2_dep'),
+]
+
 executable(
     'janus-ftl-orchestrator-test',
     testsources,
+    cpp_pch: 'pch/test_pch.h',
     include_directories: incdir,
-    dependencies: deps,
+    dependencies: testdeps,
 )

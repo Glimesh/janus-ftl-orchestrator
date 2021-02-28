@@ -12,7 +12,6 @@
 #include "Util.h"
 
 #include <openssl/ssl.h>
-#include <spdlog/spdlog.h>
 #include <sstream>
 #include <stdexcept>
 

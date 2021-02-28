@@ -7,7 +7,6 @@
 
 #include "Configuration.h"
 
-#include <spdlog/spdlog.h>
 #include <sstream>
 
 #pragma region Public methods
