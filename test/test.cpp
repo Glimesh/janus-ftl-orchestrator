@@ -5,14 +5,17 @@
  * @copyright Copyright (c) 2020 Hayden McAfee
  */
 
-#define CATCH_CONFIG_RUNNER // This tells Catch that we'll be providing the main entrypoint
-#include <catch2/catch.hpp>
-#include <spdlog/spdlog.h>
-
 #include "TestLogging.h"
 
 #include <memory>
 #include <mutex>
+
+// Some Catch2 defines required for PCH support
+// https://github.com/catchorg/Catch2/blob/v2.x/docs/ci-and-misc.md#precompiled-headers-pchs
+#undef TWOBLUECUBES_SINGLE_INCLUDE_CATCH_HPP_INCLUDED
+#define CATCH_CONFIG_IMPL_ONLY
+#define CATCH_CONFIG_RUNNER
+#include <catch2/catch.hpp>
 
 int main(int argc, char* argv[])
 {

@@ -5,8 +5,6 @@
  * @copyright Copyright (c) 2020 Hayden McAfee
  */
 
-#include <catch2/catch.hpp>
-
 #include <FtlOrchestrationClient.h>
 #include <Orchestrator.h>
 #include <TlsConnectionManager.h>

@@ -10,8 +10,6 @@
 #include "ChannelSubscription.h"
 #include "FtlTypes.h"
 
-#include <spdlog/spdlog.h>
-
 #include <map>
 #include <memory>
 #include <mutex>

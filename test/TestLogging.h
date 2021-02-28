@@ -7,9 +7,7 @@
 
 #pragma once
 
-#include <catch2/catch.hpp>
 #include <spdlog/sinks/base_sink.h>
-
 #include <string>
 
 template<typename Mutex>

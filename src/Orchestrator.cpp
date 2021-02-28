@@ -12,8 +12,6 @@
 #include "StreamStore.h"
 #include "Util.h"
 
-#include <spdlog/spdlog.h>
-
 #include <list>
 
 #pragma region Constructor/Destructor

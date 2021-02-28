@@ -5,8 +5,6 @@
  * @copyright Copyright (c) 2020 Hayden McAfee
  */
 
-#include <catch2/catch.hpp>
-
 #include <FtlConnection.h>
 
 #include "../mocks/MockConnectionTransport.h"

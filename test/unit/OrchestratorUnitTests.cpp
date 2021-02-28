@@ -6,8 +6,6 @@
  * @brief Contains unit tests for the Orchestrator class. 
  */
 
-#include <catch2/catch.hpp>
-
 #include <array>
 #include <memory>
 #include <sstream>
