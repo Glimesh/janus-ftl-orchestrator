@@ -62,10 +62,10 @@ testsources = files([
 testdeps = [
     dependency('libssl'),
     dependency('libcrypto'),
-    catch2_wrap.get_variable('catch2_dep'),
     # Meson wrapped dependencies
     fmt_wrap.get_variable('fmt_dep'),
     spdlog_wrap.get_variable('spdlog_dep'),
+    catch2_wrap.get_variable('catch2_dep'),
 ]
 
 executable(
