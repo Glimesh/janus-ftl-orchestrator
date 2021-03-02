@@ -382,8 +382,26 @@ ConnectionResult Orchestrator<TConnection>::connectionStreamPublish(
                 payload.ChannelId,
                 payload.StreamId);
 
-            // Add it to the stream store
             // TODO: Handle existing streams
+            // HACK
+            // Do we already have a stream going for this channel?
+            auto existingStream = streamStore.GetStreamByChannelId(payload.ChannelId);
+            if (existingStream.has_value())
+            {
+                spdlog::warn(
+                    "Orchestrator: Channel {} has existing Stream {} - closing old routes...",
+                    existingStream.value().ChannelId, existingStream.value().StreamId);
+                // Clear any active routes for this Channel ID
+                for (const auto& sub : subscriptions.GetSubscriptions(payload.ChannelId))
+                {
+                    closeRoute(existingStream.value(), sub.SubscribedConnection);
+                }
+                streamStore.RemoveStream(existingStream.value().ChannelId,
+                    existingStream.value().StreamId);
+            }
+            // /HACK
+
+            // Add it to the stream store
             Stream newStream
             {
                 .IngestConnection = strongConnection,
