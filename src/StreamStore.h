@@ -69,9 +69,14 @@ public:
             streamByChannelId.erase(channelId);
             if (streamsByIngestConnection.count(returnStream.IngestConnection) <= 0)
             {
-                throw std::runtime_error(
-                    "Inconsistent StreamStore state - could not locate connection for "
+                // HACK - make this non-fatal
+                spdlog::error("Inconsistent StreamStore state - could not locate connection for "
                     "existing stream.");
+                return std::nullopt;
+                // throw std::runtime_error(
+                //     "Inconsistent StreamStore state - could not locate connection for "
+                //     "existing stream.");
+                // /HACK
             }
             auto& streamList = streamsByIngestConnection[returnStream.IngestConnection];
             streamList.remove_if(
@@ -120,9 +125,13 @@ public:
             {
                 if (streamByChannelId.count(stream.ChannelId) <= 0)
                 {
-                    throw std::runtime_error(
-                        "Inconsistent StreamStore state - could not locate matching stream entry "
-                        "for connection.");
+                    // HACK - make this not fatal
+                    spdlog::error("Inconsistent StreamStore state - could not locate matching "
+                        "stream entry for connection.");
+                    // throw std::runtime_error(
+                    //     "Inconsistent StreamStore state - could not locate matching stream entry "
+                    //     "for connection.");
+                    // /HACK
                 }
                 streamByChannelId.erase(stream.ChannelId);
             }
