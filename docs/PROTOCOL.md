@@ -98,7 +98,7 @@ This leaves 6 bits for the `type` field to indicate the type of the message.
 | _`3` - `15`_ | _Reserved_              | _Reserved for future use (server state messaging)_ |
 | `16`         | Channel Subscription    | Indicates whether streams for a given channel should be relayed to this node. |
 | `17`         | Stream Publishing       | Indicates that a new stream is now available (or unavailable) from this connection. |
-| `18`         | Stream Relaying         | Contains information used for relaying streams between nodes. |
+| `20`         | Stream Relaying         | Contains information used for relaying streams between nodes. |
 | `19` - `31`  | _Reserved_              | _Reserved for future use_ |
 | `32` - `63`  | _Reserved_              | _Reserved for future use_ |
 
@@ -117,7 +117,7 @@ The table below describes the payload format of each message type.
 | `2` / Node State            | 32-bit unsigned int current load units<br />32-bit unsigned int maximum load units | None |
 | `16` / Channel Subscription | 8-bit context value: `1` = subscribe, `0` = unsubscribe<br />32-bit unsigned integer channel ID<br />If subscribing, binary stream key for relayed streams to use | None |
 | `17` / Stream Publishing    | 8-bit context value: `1` = publish, `0` = unpublish<br />32-bit unsigned integer channel ID<br />32-bit unsigned integer stream ID | None |
-| `22` / Stream Relaying      | 8-bit context value: `1` = relay stream, `0` = stop relaying stream<br />32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer target hostname length<br />ASCII target hostname string<br />Binary stream key | None |
+| `20` / Stream Relaying      | 8-bit context value: `1` = relay stream, `0` = stop relaying stream<br />32-bit unsigned integer channel ID<br />32-bit unsigned stream ID<br />16-bit unsigned integer target hostname length<br />ASCII target hostname string<br />Binary stream key | None |
 
 # Usage Examples
 
